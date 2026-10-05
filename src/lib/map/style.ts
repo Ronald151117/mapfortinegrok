@@ -33,6 +33,7 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
         tileSize: 256,
         minzoom: 5,
         maxzoom: 14,
+        bounds: [-91.3, 12.2, -86.7, 15.4],
         attribution: "Relieve: AWS Terrain Tiles / SRTM",
       },
       hill: {
@@ -42,6 +43,7 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
         tileSize: 256,
         minzoom: 5,
         maxzoom: 14,
+        bounds: [-91.3, 12.2, -86.7, 15.4],
       },
       land: { type: "geojson", data: land },
       departments: { type: "geojson", data: departments },

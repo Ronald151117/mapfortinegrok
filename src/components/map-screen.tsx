@@ -418,6 +418,11 @@ export function MapScreen() {
           const next = !sunset;
           map.setLight({ anchor: "viewport", color: next ? "#ffd19a" : "#fff4e0", intensity: next ? 0.55 : 0.42, position: [1.15, next ? 245 : 210, next ? 65 : 38] });
           map.setSky({ "sky-color": next ? "#bda6e2" : "#88d6ee", "horizon-color": next ? "#ffd5a1" : "#fff2d4", "fog-color": next ? "#ecd2c2" : "#c5e6f8", "sky-horizon-blend": 0.55, "horizon-fog-blend": 0.62, "fog-ground-blend": 0.22, "atmosphere-blend": 0.45 });
+          map.setPaintProperty("ocean", "background-color", next ? "#367f9f" : "#228dbd");
+          map.setPaintProperty("water", "fill-color", next ? "#78b6be" : "#43c5dc");
+          map.setPaintProperty("hillshade", "hillshade-highlight-color", next ? "#ffe0b0" : "#fff6d4");
+          map.setPaintProperty("hillshade", "hillshade-shadow-color", next ? "#665874" : "#315c50");
+          map.setPaintProperty("hillshade", "hillshade-accent-color", next ? "#786d5b" : "#608b47");
           setSunset(next);
         }}>{sunset ? <Sunset size={18} /> : <Sun size={18} />}<span>{sunset ? "Tarde" : "Día"}</span></button>
       </aside>
