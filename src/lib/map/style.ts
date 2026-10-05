@@ -74,7 +74,7 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
         id: "dept-label",
         type: "symbol",
         source: "departments",
-        maxzoom: 10,
+        maxzoom: 8.5,
         layout: {
           "text-field": ["get", "n"],
           "text-font": ["Lilita One"],
@@ -409,7 +409,7 @@ export function labelLayers() {
       minzoom: 14.5,
       layout: {
         "icon-image": ["match", ["get", "k"], 2, "palm", 1, "pine", "tree"],
-        "icon-size": ["interpolate", ["linear"], ["zoom"], 14.5, 0.95, 16.8, 1.12],
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 14.5, 0.6, 16.8, 1.05],
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
         "icon-pitch-alignment": "viewport",
@@ -425,7 +425,7 @@ export function labelLayers() {
         "icon-image": ["get", "k"],
         "icon-size": 0.72,
         "icon-allow-overlap": false,
-        "text-field": ["step", ["zoom"], "", 15, ["get", "n"]],
+        "text-field": ["step", ["zoom"], "", 16.2, ["get", "n"]],
         "text-font": ["Nunito Bold"],
         "text-size": 11,
         "text-offset": [0, 1.15],
@@ -438,8 +438,9 @@ export function labelLayers() {
       id: "places",
       type: "symbol",
       source: "places",
+      minzoom: 8.5,
       layout: {
-        "text-field": ["get", "n"],
+        "text-field": ["step", ["zoom"], ["case", ["<=", ["get", "k"], 1], ["get", "n"], ""], 13.5, ["get", "n"]],
         "text-font": ["Lilita One"],
         "text-size": [
           "interpolate",

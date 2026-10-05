@@ -8,8 +8,10 @@ on:
       - "package*.json"
       - ".github/workflows/map-checks.yml"
       - "scripts/map-browser-qa.sh"
-  push:
-    branches: ["codex/cuzcatlan-map-upgrade"]
+
+concurrency:
+  group: map-checks-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

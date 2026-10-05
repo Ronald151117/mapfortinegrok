@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { chromium } from "playwright";
 import { checkedOutputPath, checkedUrl } from "./browser-guard.mjs";
 import { computeBrandWarnings } from "./brand-check.mjs";
@@ -31,6 +31,7 @@ const outPng = checkedOutputPath(args.outPng, ["/workspace"]);
 const derived = derivedPaths(outPng);
 const mobilePng = checkedOutputPath(derived.mobilePng, ["/workspace"]);
 const outJson = checkedOutputPath(derived.verdictJson, ["/workspace"], "verdict JSON");
+mkdirSync(dirname(outPng), { recursive: true });
 
 const MAX_BASELINE_BYTES = 1024 * 1024;
 const baselineRequested = Boolean(args.baseline);
@@ -38,11 +39,12 @@ let baselinePath = null;
 let baselineResolveError = null;
 if (baselineRequested) {
   try {
-    baselinePath = checkedOutputPath(realpathSync(args.baseline), ["/workspace"], "baseline");
+    baselinePath = checkedOutputPath(realpathSync(args.baseline), [realpathSync("/workspace")], "baseline");
   } catch (err) {
     baselineResolveError = err?.code ?? "unresolvable path";
   }
-  if (baselinePath === outJson) {
+  const canonicalOutput = join(realpathSync(dirname(outJson)), basename(outJson));
+  if (baselinePath === canonicalOutput) {
     console.error(
       JSON.stringify(
         {
@@ -65,8 +67,6 @@ const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800, screenshot: outPng },
   { name: "mobile", width: 390, height: 844, screenshot: mobilePng },
 ];
-
-mkdirSync(dirname(outPng), { recursive: true });
 
 function compareAgainstBaseline(verdict) {
   if (!baselinePath) {
