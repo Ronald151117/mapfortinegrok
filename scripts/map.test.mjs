@@ -99,14 +99,22 @@ test("Visual web can use plain z/x/y tiles, its own glyphs and add the map under
   // a fake map with its own style: everything goes under its first layer, with prefixed sources
   const sources = { basemap: { type: "vector", tiles: ["https://x/{z}/{x}/{y}.pbf"] } };
   const layers = [{ id: "background", type: "background" }, { id: "own", type: "line", source: "basemap", "source-layer": "roads" }];
+  const listeners = {};
+  let zoom = 8;
   const map = {
-    on() {}, once() {}, isStyleLoaded: () => true, hasImage: () => true, addImage() {},
+    on: (event, fn) => { (listeners[event] ??= new Set()).add(fn); }, off: (event, fn) => listeners[event]?.delete(fn),
+    once() {}, isStyleLoaded: () => true, getZoom: () => zoom, hasImage: () => true, addImage() {},
     getSource: (id) => sources[id], addSource: (id, s) => { sources[id] = s; }, removeSource: (id) => { delete sources[id]; },
     getLayer: (id) => layers.find((l) => l.id === id), removeLayer: (id) => layers.splice(layers.findIndex((l) => l.id === id), 1),
     addLayer: (layer, before) => layers.splice(before ? layers.findIndex((l) => l.id === before) : layers.length, 0, layer),
   };
   sv.ponerEn(map, { antesDe: "own", fuentes: { titulo: ["Noto Sans Bold"], texto: ["Noto Sans Bold"] } });
   sv.ponerEn(map, { antesDe: "own" });
+  // the big trees file waits until the map zooms in close enough to draw them
+  assert.equal(listeners.zoomend?.size, 1);
+  zoom = 12;
+  for (const fn of [...listeners.zoomend]) fn({});
+  assert.equal(listeners.zoomend.size, 0);
   assert.equal(layers.at(-1).id, "own");
   assert.equal(layers.filter((l) => l.id === "bt-land").length, 1);
   assert.ok(layers.filter((l) => l.source && l.id !== "own").every((l) => l.source.startsWith("sv-")));

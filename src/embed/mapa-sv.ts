@@ -38,6 +38,8 @@ type Maplibre = {
 
 type GLMap = {
   on: (event: string, fn: (event: { id?: string }) => void) => unknown;
+  off: (event: string, fn: (event: { id?: string }) => void) => unknown;
+  getZoom: () => number;
   once: (event: string, fn: () => void) => unknown;
   isStyleLoaded: () => boolean | void;
   getSource: (id: string) => unknown;
@@ -49,6 +51,9 @@ type GLMap = {
   hasImage: (id: string) => boolean;
   addImage: (id: string, image: { width: number; height: number; data: Uint8ClampedArray }, options?: { pixelRatio?: number }) => void;
 };
+
+/** The trees (a 2.4 MB file) are drawn from zoom 12: they are only fetched once the map gets close to that. */
+const ARBOLES_DESDE = 11;
 
 /** Font stacks for the labels: `titulo` for place names, `texto` for the rest. */
 export type Fuentes = { titulo: string[]; texto: string[] };
@@ -74,6 +79,9 @@ export type OpcionesMapaSv = {
   fuentes?: Fuentes;
   /** Lettered A–J / 1–6 battle grid lines. Off by default: tracking apps draw their own markers on top. */
   cuadricula?: boolean;
+  /** Highest zoom of the relief tiles (hillshade and sea depth), overzoomed past it. Lower = far fewer downloads
+   *  (12 instead of 14 asks for 16 times fewer tiles up close): what phones want. Default 14. */
+  relieveMax?: number;
 };
 
 function conFuentes(layers: Layer[], fuentes?: Fuentes) {
@@ -85,7 +93,7 @@ function conFuentes(layers: Layer[], fuentes?: Fuentes) {
   });
 }
 
-export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadricula = false }: OpcionesMapaSv) {
+export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadricula = false, relieveMax = 14 }: OpcionesMapaSv) {
   const root = base.replace(/\/+$/, "");
   if (!teselas) {
     if (!maplibregl) throw new Error("crearMapaSv: hace falta maplibregl o teselas");
@@ -105,7 +113,7 @@ export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadri
     roads: { type: "vector", tiles: [tiles("roads")], minzoom: 6, maxzoom: 14, attribution: ATTRIBUTION },
     cover: { type: "vector", tiles: [tiles("cover")], minzoom: 6, maxzoom: 14 },
     buildings: { type: "vector", tiles: [tiles("buildings")], minzoom: 13, maxzoom: 14 },
-    hill: { type: "raster-dem", tiles: [DEM_TILES], encoding: "terrarium", tileSize: 256, minzoom: 5, maxzoom: 14, bounds: DEM_BOUNDS },
+    hill: { type: "raster-dem", tiles: [DEM_TILES], encoding: "terrarium", tileSize: 256, minzoom: 5, maxzoom: relieveMax, bounds: DEM_BOUNDS },
     ...Object.fromEntries(GEOJSON.map((id) => [id, { type: "geojson", data: empty() }])),
     ...battleSources(),
   });
@@ -166,13 +174,24 @@ export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadri
 
   /** Every source is filled as soon as its own file arrives: the land outline does not wait for the trees. */
   function llenar(map: GLMap, prefijo: string) {
-    for (const id of GEOJSON) {
+    const cargar = (id: (typeof GEOJSON)[number]) =>
       once(id, files[id])
         .then((value) => {
           const source = map.getSource(prefijo + id) as { setData?: (value: Collection) => void } | undefined;
           source?.setData?.(value);
         })
         .catch((err) => console.error(`Mapa de El Salvador: no se pudo cargar ${id}`, err));
+    for (const id of GEOJSON) {
+      if (id !== "trees" || map.getZoom() >= ARBOLES_DESDE) {
+        cargar(id);
+        continue;
+      }
+      const alAcercar = () => {
+        if (map.getZoom() < ARBOLES_DESDE) return;
+        map.off("zoomend", alAcercar);
+        cargar(id);
+      };
+      map.on("zoomend", alAcercar);
     }
   }
 
