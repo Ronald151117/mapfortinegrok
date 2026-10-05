@@ -13,6 +13,7 @@
 
 import { BATTLE_BUILDINGS_BEFORE, battleBuildingLayers, battleLayers, battleSources } from "../lib/map/battle.ts";
 import { buildBattleArt } from "../lib/map/battle-art.ts";
+import { neonLayers } from "../lib/map/neon.ts";
 import { createPackReader, fetchMaybeGz, svtHandler } from "../lib/map/packs.ts";
 
 // The public Terrarium tiles allow cross-origin requests, so embeds skip this site's /api/dem proxy.
@@ -82,6 +83,8 @@ export type OpcionesMapaSv = {
   /** Highest zoom of the relief tiles (hillshade and sea depth), overzoomed past it. Lower = far fewer downloads
    *  (12 instead of 14 asks for 16 times fewer tiles up close): what phones want. Default 14. */
   relieveMax?: number;
+  /** "batalla" (default): the painted battle map. "neon": the same map repainted for the night (Neón nocturno). */
+  tema?: "batalla" | "neon";
 };
 
 function conFuentes(layers: Layer[], fuentes?: Fuentes) {
@@ -93,7 +96,7 @@ function conFuentes(layers: Layer[], fuentes?: Fuentes) {
   });
 }
 
-export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadricula = false, relieveMax = 14 }: OpcionesMapaSv) {
+export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadricula = false, relieveMax = 14, tema = "batalla" }: OpcionesMapaSv) {
   const root = base.replace(/\/+$/, "");
   if (!teselas) {
     if (!maplibregl) throw new Error("crearMapaSv: hace falta maplibregl o teselas");
@@ -106,8 +109,9 @@ export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadri
   }
   const tiles = (capa: (typeof CAPAS)[number]) => (teselas ? teselas(capa) : `svt://${capa}/{z}/{x}/{y}`);
 
-  const baseLayers: Layer[] = battleLayers().filter((layer) => cuadricula || layer.id !== "bt-grid") as Layer[];
+  let baseLayers: Layer[] = battleLayers().filter((layer) => cuadricula || layer.id !== "bt-grid") as Layer[];
   baseLayers.splice(baseLayers.findIndex((layer) => layer.id === BATTLE_BUILDINGS_BEFORE), 0, ...(battleBuildingLayers() as Layer[]));
+  if (tema === "neon") baseLayers = neonLayers(baseLayers) as Layer[];
 
   const sources = (): Record<string, unknown> => ({
     roads: { type: "vector", tiles: [tiles("roads")], minzoom: 6, maxzoom: 14, attribution: ATTRIBUTION },
@@ -120,7 +124,7 @@ export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadri
 
   const style = {
     version: 8 as const,
-    name: "El Salvador · mapa plano",
+    name: tema === "neon" ? "El Salvador · neón nocturno" : "El Salvador · mapa plano",
     glyphs: glyphs ?? `${root}/fonts/{fontstack}/{range}.pbf`,
     ...(glyphs
       ? {}

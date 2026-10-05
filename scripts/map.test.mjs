@@ -121,5 +121,14 @@ test("Visual web can use plain z/x/y tiles, its own glyphs and add the map under
   assert.deepEqual(validateStyleMin({ version: 8, glyphs: "https://x/{fontstack}/{range}.pbf", sources, layers }).map((e) => e.message), []);
   sv.quitarDe(map);
   assert.deepEqual(layers.map((l) => l.id), ["background", "own"]);
+
+  // "Neón nocturno": the same sources and layer ids, repainted, with a glow line per road class under the roads
+  const neon = crearMapaSv({ base: "https://visual.example/mapa-sv/a", teselas: (capa) => `https://x/${capa}/{z}/{x}/{y}.pbf`, glyphs: "https://fonts.example/{fontstack}/{range}.pbf", fuentes, tema: "neon" });
+  assert.deepEqual(validateStyleMin(neon.style).map((error) => error.message), []);
+  const ids = neon.style.layers.map((l) => l.id);
+  for (const c of ["arterial", "mid", "local", "service"]) assert.ok(ids.indexOf(`bt-neon-glow-${c}`) < ids.indexOf(`bt-case-${c}`), c);
+  assert.ok(!neon.style.layers.some((l) => l.paint?.["fill-pattern"] && l.id !== "bt-landuse-texture" && l.id !== "bt-landuse-coastal" && l.id !== "bt-land"));
+  assert.equal(neon.style.layers.find((l) => l.id === "bt-land").paint["fill-pattern"], undefined);
+  assert.equal(neon.style.layers.find((l) => l.id === "bt-road-arterial").paint["line-color"], "#ff3df2");
   assert.deepEqual(Object.keys(sources), ["basemap"]);
 });
