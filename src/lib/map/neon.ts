@@ -97,6 +97,9 @@ function scaled(expr: unknown, k: number, plus = 0): unknown {
   return expr.map((v, i) => (i >= 3 && i % 2 === 0 && typeof v === "number" ? v * k + plus : v));
 }
 
+// zoom from which each road class glows (arterial and main roads: always)
+const GLOW_DESDE: Partial<Record<keyof typeof NEON_ROADS, number>> = { local: 14, service: 15 };
+
 const roadId = (id: string) => /^bt-(?:road|case)-(arterial|mid|local|service)$/.exec(id)?.[1] as keyof typeof NEON_ROADS | undefined;
 
 /** The battle layers repainted as "Neón nocturno", with a glow line per road class under the roads. */
@@ -114,17 +117,25 @@ export function neonLayers(layers: Layer[]): Layer[] {
         out.push({
           ...base,
           id: `bt-neon-glow-${c}`,
+          // blurred lines are the costliest thing on a phone (every pixel of a wide blur is drawn): small streets only
+          // glow up close, where there are few of them on screen
+          ...(GLOW_DESDE[c] ? { minzoom: GLOW_DESDE[c] } : {}),
           paint: {
             "line-color": NEON_ROADS[c].glow,
             "line-opacity": c === "service" ? 0.18 : 0.38,
-            "line-blur": scaled(width, 0.9),
-            "line-width": scaled(width, 3.2),
+            "line-blur": scaled(width, 0.8),
+            "line-width": scaled(width, 2.6),
           },
         });
       }
       glowsAdded = true;
     }
     const paint = PAINT[layer.id];
+    if (layer.id === "bt-hillshade") {
+      // on the near-black land the relief is only seen from afar: up close it is not drawn (less work per frame)
+      out.push({ ...layer, maxzoom: 14, paint: { ...(layer.paint || {}), ...paint } });
+      continue;
+    }
     if (clase) {
       const isCase = layer.id.startsWith("bt-case-");
       out.push({
