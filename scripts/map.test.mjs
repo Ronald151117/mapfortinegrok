@@ -72,3 +72,46 @@ test("the embeddable El Salvador map builds a valid flat style for other apps", 
   assert.ok(!style.layers.some((layer) => layer.id === "bt-grid"));
   assert.deepEqual(validateStyleMin(style).map((error) => error.message), []);
 });
+
+test("Visual web can use plain z/x/y tiles, its own glyphs and add the map under another style", async (context) => {
+  let validateStyleMin;
+  try {
+    ({ validateStyleMin } = await import("@maplibre/maplibre-gl-style-spec"));
+  } catch (error) {
+    if (error.code !== "ERR_MODULE_NOT_FOUND") throw error;
+    context.skip("Install the project's dependencies to run MapLibre validation");
+    return;
+  }
+  const { crearMapaSv } = await import("../src/embed/mapa-sv.ts");
+  const fuentes = { titulo: ["Noto Sans Bold"], texto: ["Noto Sans Regular"] };
+  const sv = crearMapaSv({
+    base: "https://visual.example/mapa-sv/a",
+    teselas: (capa) => `https://visual.example/mapa-sv/t/${capa}/{z}/{x}/{y}.pbf`,
+    glyphs: "https://fonts.example/{fontstack}/{range}.pbf",
+    fuentes,
+  });
+  assert.equal(sv.style["font-faces"], undefined);
+  assert.equal(sv.style.sources.roads.tiles[0], "https://visual.example/mapa-sv/t/roads/{z}/{x}/{y}.pbf");
+  const fonts = new Set(sv.style.layers.flatMap((layer) => layer.layout?.["text-font"] ?? []));
+  assert.deepEqual([...fonts].sort(), ["Noto Sans Bold", "Noto Sans Regular"]);
+  assert.deepEqual(validateStyleMin(sv.style).map((error) => error.message), []);
+
+  // a fake map with its own style: everything goes under its first layer, with prefixed sources
+  const sources = { basemap: { type: "vector", tiles: ["https://x/{z}/{x}/{y}.pbf"] } };
+  const layers = [{ id: "background", type: "background" }, { id: "own", type: "line", source: "basemap", "source-layer": "roads" }];
+  const map = {
+    on() {}, once() {}, isStyleLoaded: () => true, hasImage: () => true, addImage() {},
+    getSource: (id) => sources[id], addSource: (id, s) => { sources[id] = s; }, removeSource: (id) => { delete sources[id]; },
+    getLayer: (id) => layers.find((l) => l.id === id), removeLayer: (id) => layers.splice(layers.findIndex((l) => l.id === id), 1),
+    addLayer: (layer, before) => layers.splice(before ? layers.findIndex((l) => l.id === before) : layers.length, 0, layer),
+  };
+  sv.ponerEn(map, { antesDe: "own", fuentes: { titulo: ["Noto Sans Bold"], texto: ["Noto Sans Bold"] } });
+  sv.ponerEn(map, { antesDe: "own" });
+  assert.equal(layers.at(-1).id, "own");
+  assert.equal(layers.filter((l) => l.id === "bt-land").length, 1);
+  assert.ok(layers.filter((l) => l.source && l.id !== "own").every((l) => l.source.startsWith("sv-")));
+  assert.deepEqual(validateStyleMin({ version: 8, glyphs: "https://x/{fontstack}/{range}.pbf", sources, layers }).map((e) => e.message), []);
+  sv.quitarDe(map);
+  assert.deepEqual(layers.map((l) => l.id), ["background", "own"]);
+  assert.deepEqual(Object.keys(sources), ["basemap"]);
+});

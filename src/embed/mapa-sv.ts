@@ -1,9 +1,15 @@
-// El Salvador flat battle map, packaged for other apps (e.g. Visual GPS) that already run MapLibre.
-// Built with `npm run build:embed` into dist-embed/mapa-sv.js: no dependencies, the caller passes its maplibregl.
+// El Salvador flat battle map, packaged for other apps (Visual GPS app and Visual web) that already run MapLibre.
+// Built with `npm run build:embed` into dist-embed/mapa-sv.js: no dependencies, the caller passes what it has.
 //
+//   // reading this site's tile packs in the browser (needs the caller's maplibregl for the svt:// protocol)
 //   const sv = crearMapaSv({ base: "https://<this site>", maplibregl });
+//   // or plain z/x/y tiles from a server that cuts them out of the packs (no protocol needed)
+//   const sv = crearMapaSv({ base: "/mapa-sv/a", teselas: (capa) => `${origin}/mapa-sv/t/${capa}/{z}/{x}/{y}.pbf` });
+//
 //   const map = new maplibregl.Map({ container, style: sv.style });   // or L.maplibreGL({ style: sv.style })
 //   sv.instalar(map);
+//   // or underneath the layers of a map that already has its own style (e.g. a 3D tracking map):
+//   sv.ponerEn(otherMap, { antesDe: "first-layer-of-that-map", fuentes: { titulo: ["Noto Sans Bold"], texto: ["Noto Sans Bold"] } });
 
 import { BATTLE_BUILDINGS_BEFORE, battleBuildingLayers, battleLayers, battleSources } from "../lib/map/battle.ts";
 import { buildBattleArt } from "../lib/map/battle-art.ts";
@@ -13,12 +19,17 @@ import { createPackReader, fetchMaybeGz, svtHandler } from "../lib/map/packs.ts"
 export const DEM_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const DEM_BOUNDS = [-91.3, 12.2, -86.7, 15.4];
 const ATTRIBUTION = "© OpenStreetMap · relieve SRTM";
+const CAPAS = ["roads", "cover", "buildings"] as const;
+const GEOJSON = ["land", "context-land", "departments", "places", "pois", "trees"] as const;
+/** Prefix of the sources added by ponerEn, so they never collide with the other map's own sources. */
+const PREFIJO = "sv-";
 
 type Collection = { type: "FeatureCollection"; features: unknown[] };
 type Names = {
   places: { n: string; k: number; lat: number; lon: number }[];
   pois: { n: string; k: string; lat: number; lon: number }[];
 };
+type Layer = Record<string, unknown> & { id: string; source?: string; layout?: Record<string, unknown> };
 
 type Maplibre = {
   addProtocol: (name: string, handler: (request: { url: string }) => Promise<{ data: ArrayBuffer }>) => void;
@@ -30,9 +41,17 @@ type GLMap = {
   once: (event: string, fn: () => void) => unknown;
   isStyleLoaded: () => boolean | void;
   getSource: (id: string) => unknown;
+  addSource: (id: string, source: unknown) => void;
+  removeSource: (id: string) => void;
+  getLayer: (id: string) => unknown;
+  addLayer: (layer: unknown, before?: string) => void;
+  removeLayer: (id: string) => void;
   hasImage: (id: string) => boolean;
   addImage: (id: string, image: { width: number; height: number; data: Uint8ClampedArray }, options?: { pixelRatio?: number }) => void;
 };
+
+/** Font stacks for the labels: `titulo` for place names, `texto` for the rest. */
+export type Fuentes = { titulo: string[]; texto: string[] };
 
 const empty = (): Collection => ({ type: "FeatureCollection", features: [] });
 
@@ -44,47 +63,67 @@ function points<T extends { lat: number; lon: number }>(rows: T[], props: (row: 
 }
 
 export type OpcionesMapaSv = {
-  /** Address of the site that serves /data and /fonts, without a trailing slash. */
+  /** Address that serves /data and /fonts (this site, or a server that relays them), without a trailing slash. */
   base: string;
-  maplibregl: Maplibre;
+  /** The caller's maplibregl: reads the tile packs in the browser through an svt:// protocol. */
+  maplibregl?: Maplibre;
+  /** Plain z/x/y vector tile URL for each pack ("roads", "cover", "buildings"): no protocol is registered. */
+  teselas?: (capa: (typeof CAPAS)[number]) => string;
+  /** Glyph server for maps whose MapLibre cannot load the bundled .ttf fonts (needs `fuentes` it can serve). */
+  glyphs?: string;
+  fuentes?: Fuentes;
   /** Lettered A–J / 1–6 battle grid lines. Off by default: tracking apps draw their own markers on top. */
   cuadricula?: boolean;
 };
 
-export function crearMapaSv({ base, maplibregl, cuadricula = false }: OpcionesMapaSv) {
-  const root = base.replace(/\/+$/, "");
-  try {
-    maplibregl.removeProtocol?.("svt");
-  } catch {
-    /* not registered yet */
-  }
-  maplibregl.addProtocol("svt", svtHandler(createPackReader(root)));
+function conFuentes(layers: Layer[], fuentes?: Fuentes) {
+  if (!fuentes) return layers;
+  return layers.map((layer) => {
+    const font = layer.layout?.["text-font"] as string[] | undefined;
+    if (!font) return layer;
+    return { ...layer, layout: { ...layer.layout, "text-font": font[0] === "Lilita One" ? fuentes.titulo : fuentes.texto } };
+  });
+}
 
-  const layers: Record<string, unknown>[] = battleLayers().filter((layer) => cuadricula || layer.id !== "bt-grid");
-  layers.splice(layers.findIndex((layer) => layer.id === BATTLE_BUILDINGS_BEFORE), 0, ...battleBuildingLayers());
+export function crearMapaSv({ base, maplibregl, teselas, glyphs, fuentes, cuadricula = false }: OpcionesMapaSv) {
+  const root = base.replace(/\/+$/, "");
+  if (!teselas) {
+    if (!maplibregl) throw new Error("crearMapaSv: hace falta maplibregl o teselas");
+    try {
+      maplibregl.removeProtocol?.("svt");
+    } catch {
+      /* not registered yet */
+    }
+    maplibregl.addProtocol("svt", svtHandler(createPackReader(root)));
+  }
+  const tiles = (capa: (typeof CAPAS)[number]) => (teselas ? teselas(capa) : `svt://${capa}/{z}/{x}/{y}`);
+
+  const baseLayers: Layer[] = battleLayers().filter((layer) => cuadricula || layer.id !== "bt-grid") as Layer[];
+  baseLayers.splice(baseLayers.findIndex((layer) => layer.id === BATTLE_BUILDINGS_BEFORE), 0, ...(battleBuildingLayers() as Layer[]));
+
+  const sources = (): Record<string, unknown> => ({
+    roads: { type: "vector", tiles: [tiles("roads")], minzoom: 6, maxzoom: 14, attribution: ATTRIBUTION },
+    cover: { type: "vector", tiles: [tiles("cover")], minzoom: 6, maxzoom: 14 },
+    buildings: { type: "vector", tiles: [tiles("buildings")], minzoom: 13, maxzoom: 14 },
+    hill: { type: "raster-dem", tiles: [DEM_TILES], encoding: "terrarium", tileSize: 256, minzoom: 5, maxzoom: 14, bounds: DEM_BOUNDS },
+    ...Object.fromEntries(GEOJSON.map((id) => [id, { type: "geojson", data: empty() }])),
+    ...battleSources(),
+  });
 
   const style = {
     version: 8 as const,
     name: "El Salvador · mapa plano",
-    glyphs: `${root}/fonts/{fontstack}/{range}.pbf`,
-    "font-faces": {
-      "Lilita One": `${root}/fonts/LilitaOne-Regular.ttf`,
-      "Nunito Bold": `${root}/fonts/Nunito-Bold.ttf`,
-    },
-    sources: {
-      roads: { type: "vector", tiles: ["svt://roads/{z}/{x}/{y}"], minzoom: 6, maxzoom: 14, attribution: ATTRIBUTION },
-      cover: { type: "vector", tiles: ["svt://cover/{z}/{x}/{y}"], minzoom: 6, maxzoom: 14 },
-      buildings: { type: "vector", tiles: ["svt://buildings/{z}/{x}/{y}"], minzoom: 13, maxzoom: 14 },
-      hill: { type: "raster-dem", tiles: [DEM_TILES], encoding: "terrarium", tileSize: 256, minzoom: 5, maxzoom: 14, bounds: DEM_BOUNDS },
-      land: { type: "geojson", data: empty() },
-      "context-land": { type: "geojson", data: empty() },
-      departments: { type: "geojson", data: empty() },
-      places: { type: "geojson", data: empty() },
-      pois: { type: "geojson", data: empty() },
-      trees: { type: "geojson", data: empty() },
-      ...battleSources(),
-    },
-    layers,
+    glyphs: glyphs ?? `${root}/fonts/{fontstack}/{range}.pbf`,
+    ...(glyphs
+      ? {}
+      : {
+          "font-faces": {
+            "Lilita One": `${root}/fonts/LilitaOne-Regular.ttf`,
+            "Nunito Bold": `${root}/fonts/Nunito-Bold.ttf`,
+          },
+        }),
+    sources: sources(),
+    layers: conFuentes(baseLayers, fuentes),
   };
 
   let art: ReturnType<typeof buildBattleArt> | null = null;
@@ -102,40 +141,76 @@ export function crearMapaSv({ base, maplibregl, cuadricula = false }: OpcionesMa
   let names: Promise<Names> | null = null;
   const loadNames = () =>
     (names ??= fetchMaybeGz(`${root}/data/search.json.gz`).then((buf) => JSON.parse(new TextDecoder().decode(buf)) as Names));
-  const files: [string, () => Promise<Collection>][] = [
-    ["land", () => json("/data/land.geojson")],
-    ["context-land", () => json("/data/context-land.geojson")],
-    ["departments", () => json("/data/departments.geojson")],
-    ["places", () => loadNames().then((n) => points(n.places, (p) => ({ n: p.n, k: p.k })))],
-    ["pois", () => loadNames().then((n) => points(n.pois, (p) => ({ n: p.n, k: p.k })))],
-    ["trees", () => json("/data/trees.geojson")],
-  ];
+  const files: Record<(typeof GEOJSON)[number], () => Promise<Collection>> = {
+    land: () => json("/data/land.geojson"),
+    "context-land": () => json("/data/context-land.geojson"),
+    departments: () => json("/data/departments.geojson"),
+    places: () => loadNames().then((n) => points(n.places, (p) => ({ n: p.n, k: p.k }))),
+    pois: () => loadNames().then((n) => points(n.pois, (p) => ({ n: p.n, k: p.k }))),
+    trees: () => json("/data/trees.geojson"),
+  };
 
-  /** Adds the painted textures and loads the country data into a map created with `style`. */
-  function instalar(map: GLMap) {
+  /** Adds the painted textures (now, and again whenever the map asks for one it lost). */
+  function ponerArte(map: GLMap) {
     const addArt = (id?: string) => {
       art ??= buildBattleArt();
       for (const [name, img] of Object.entries(art)) {
         if ((!id || id === name) && !map.hasImage(name)) map.addImage(name, img, { pixelRatio: 2 });
       }
     };
-    map.on("styleimagemissing", (event) => addArt(event.id));
+    map.on("styleimagemissing", (event) => {
+      if (event.id?.startsWith("bt-")) addArt(event.id);
+    });
+    addArt();
+  }
+
+  /** Every source is filled as soon as its own file arrives: the land outline does not wait for the trees. */
+  function llenar(map: GLMap, prefijo: string) {
+    for (const id of GEOJSON) {
+      once(id, files[id])
+        .then((value) => {
+          const source = map.getSource(prefijo + id) as { setData?: (value: Collection) => void } | undefined;
+          source?.setData?.(value);
+        })
+        .catch((err) => console.error(`Mapa de El Salvador: no se pudo cargar ${id}`, err));
+    }
+  }
+
+  /** Adds the painted textures and loads the country data into a map created with `style`. */
+  function instalar(map: GLMap) {
     const fill = () => {
-      addArt();
-      // Every layer is filled as soon as its own file arrives: the land outline does not wait for the trees.
-      for (const [id, load] of files) {
-        once(id, load)
-          .then((value) => {
-            const source = map.getSource(id) as { setData?: (value: Collection) => void } | undefined;
-            source?.setData?.(value);
-          })
-          .catch((err) => console.error(`Mapa de El Salvador: no se pudo cargar ${id}`, err));
-      }
+      ponerArte(map);
+      llenar(map, "");
     };
     // "style.load" comes as soon as the style is parsed; "load" would also wait for slow relief tiles.
     if (map.isStyleLoaded()) fill();
     else map.once("style.load", fill);
   }
 
-  return { style, instalar };
+  const ajenas = new WeakSet<object>();   // maps that already have the textures listener
+
+  /** Adds the whole flat map underneath `antesDe` in a map that has its own style. Safe to call again. */
+  function ponerEn(map: GLMap, { antesDe, fuentes: otras }: { antesDe?: string; fuentes?: Fuentes } = {}) {
+    if (map.getLayer("bt-land")) return;
+    for (const [id, source] of Object.entries(sources())) if (!map.getSource(PREFIJO + id)) map.addSource(PREFIJO + id, source);
+    if (!ajenas.has(map)) {
+      ajenas.add(map);
+      ponerArte(map);
+    } else {
+      art ??= buildBattleArt();
+      for (const [name, img] of Object.entries(art)) if (!map.hasImage(name)) map.addImage(name, img, { pixelRatio: 2 });
+    }
+    for (const layer of conFuentes(baseLayers, otras ?? fuentes)) {
+      map.addLayer(layer.source ? { ...layer, source: PREFIJO + layer.source } : layer, antesDe);
+    }
+    llenar(map, PREFIJO);
+  }
+
+  /** Removes what ponerEn added. */
+  function quitarDe(map: GLMap) {
+    for (const layer of baseLayers) if (map.getLayer(layer.id)) map.removeLayer(layer.id);
+    for (const id of Object.keys(sources())) if (map.getSource(PREFIJO + id)) map.removeSource(PREFIJO + id);
+  }
+
+  return { style, instalar, ponerEn, quitarDe };
 }
