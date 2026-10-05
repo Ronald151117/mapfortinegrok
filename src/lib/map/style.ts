@@ -6,7 +6,7 @@ const ACCENT = "#ff7a32";
 
 const empty = { type: "FeatureCollection" as const, features: [] as unknown[] };
 
-export function baseStyle(origin: string, land: unknown = empty, departments: unknown = empty) {
+export function baseStyle(origin: string, land: unknown = empty, departments: unknown = empty, contextLand: unknown = empty) {
   return {
     version: 8 as const,
     name: "Cuzcatlán",
@@ -46,6 +46,7 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
         bounds: [-91.3, 12.2, -86.7, 15.4],
       },
       land: { type: "geojson", data: land },
+      "context-land": { type: "geojson", data: contextLand },
       departments: { type: "geojson", data: departments },
       places: { type: "geojson", data: empty },
       pois: { type: "geojson", data: empty },
@@ -55,6 +56,7 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
     },
     layers: [
       { id: "ocean", type: "background", paint: { "background-color": OCEAN } },
+      { id: "context-land", type: "fill", source: "context-land", paint: { "fill-color": "#839e78" } },
       {
         id: "land",
         type: "fill",

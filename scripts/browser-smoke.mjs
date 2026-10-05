@@ -105,6 +105,9 @@ try {
       if (msg.type() === "error") errors.consoleErrors.push(msg.text());
     });
     page.on("pageerror", (err) => errors.pageErrors.push(String(err?.message || err)));
+    page.on("response", (response) => {
+      if (response.status() >= 400) errors.consoleErrors.push(`${response.status()} ${response.url()}`);
+    });
     // `domcontentloaded`, not `networkidle`: Vite keeps an HMR websocket open, so
     // networkidle never settles and would burn the whole timeout.
     const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });

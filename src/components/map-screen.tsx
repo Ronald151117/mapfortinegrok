@@ -5,7 +5,7 @@ import { COUNTRY_VIEW, DESTINATIONS, KIND_LABEL, countryView, filterDestinations
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { decodeArchive, readTile, type Archive } from "@/lib/map/decode";
-import { deptData, landData } from "@/lib/map/country";
+import { contextData, deptData, landData } from "@/lib/map/country";
 import { buildIcons } from "@/lib/map/icons";
 import { baseStyle, buildingLayer, buildingRoofLayer, coverLayers, destinationLayers, labelLayers, reliefLayer, roadLayers } from "@/lib/map/style";
 
@@ -193,7 +193,7 @@ export function MapScreen() {
 
       map = new maplibregl.Map({
         container: host.current,
-        style: baseStyle(window.location.origin, landData, deptData) as unknown as StyleSpecification,
+        style: baseStyle(window.location.origin, landData, deptData, contextData) as unknown as StyleSpecification,
         ...countryView(host.current.clientWidth),
         maxPitch: 75,
         minZoom: 6.2,

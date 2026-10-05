@@ -41,6 +41,7 @@ for MAP_QA_MODE in dev built; do
   qa find first '.destination-item' click
   qa wait --text 'El corazón de la capital'
   qa wait 4000
+  qa eval '(() => { const el = document.querySelector(".map-host"); let fiber = el[Object.keys(el).find(key => key.startsWith("__reactFiber$"))]; while (fiber) { let hook = fiber.memoizedState; while (hook) { const map = hook.memoizedState?.current; if (typeof map?.getSource === "function") return { zoom: map.getZoom(), source: !!map.getSource("buildings"), layer: !!map.getLayer("buildings"), loaded: map.getSource("buildings") ? map.isSourceLoaded("buildings") : false, sourceCount: map.getSource("buildings") ? map.querySourceFeatures("buildings", { sourceLayer: "buildings" }).length : 0, rendered: map.getLayer("buildings") ? map.queryRenderedFeatures({ layers: ["buildings"] }).length : 0 }; hook = hook.next; } fiber = fiber.return; } return null; })()' > "/workspace/screenshots/$MAP_QA_MODE-building-diagnostic.json"
   qa screenshot "/workspace/screenshots/$MAP_QA_MODE-san-salvador.png"
   qa find role button click --name 'Volver al país'
   qa set viewport 390 844

@@ -17,6 +17,8 @@ npm run dev
 
 Datos: © OpenStreetMap · relieve SRTM.
 
+El contexto regional usa tierra de [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), de dominio público. Esa capa es una referencia regional de baja resolución; las huellas y límites del mapa salvadoreño conservan los datos detallados existentes.
+
 ## Verificación
 
 ```bash
