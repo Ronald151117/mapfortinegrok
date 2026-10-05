@@ -1,0 +1,47 @@
+# Semáforos de El Salvador (OpenStreetMap) para los mapas 3D: baja el extracto de Geofabrik, saca los semáforos con
+# scripts/build-semaforos.mjs y guarda public/data/semaforos.json en la misma rama.
+# Corre al cambiar el script o este archivo, a mano (Actions → Semáforos → Run workflow) y cada lunes.
+name: Semáforos
+
+on:
+  push:
+    paths:
+      - "scripts/build-semaforos.mjs"
+      - ".github/workflows/semaforos.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: semaforos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semaforos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Solo el lector de OSM
+        run: npm install --no-save --ignore-scripts osm-pbf-parser@2
+      - name: Extracto de El Salvador
+        run: curl -fsSL --retry 3 -o /tmp/sv.osm.pbf https://download.geofabrik.de/central-america/el-salvador-latest.osm.pbf
+      - name: Semáforos
+        run: node scripts/build-semaforos.mjs /tmp/sv.osm.pbf public/data/semaforos.json
+      - name: Guardar si cambiaron
+        run: |
+          if git diff --quiet -- public/data/semaforos.json && git ls-files --error-unmatch public/data/semaforos.json >/dev/null 2>&1; then
+            echo "Sin cambios"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898349+github-actions[bot]@users.noreply.github.com"
+          git add public/data/semaforos.json
+          git commit -m "Semáforos de OpenStreetMap ($(date -u +%F))"
+          git push
