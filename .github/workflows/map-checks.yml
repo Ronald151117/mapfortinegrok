@@ -7,6 +7,7 @@ on:
       - "scripts/map.test.mjs"
       - "package*.json"
       - ".github/workflows/map-checks.yml"
+      - "scripts/map-browser-qa.sh"
   push:
     branches: ["codex/cuzcatlan-map-upgrade"]
 
@@ -28,3 +29,24 @@ jobs:
         run: node scripts/map.test.mjs
       - run: npm run typecheck
       - run: npm run build
+      - name: Install browser tools
+        run: |
+          npm install -g agent-browser
+          npx playwright install --with-deps chromium
+      - name: Start development and built previews
+        run: |
+          sudo ln -s "$GITHUB_WORKSPACE" /workspace
+          sh /workspace/startup.sh
+          npm run preview:restart
+      - name: Check real map interactions on desktop and mobile
+        run: bash scripts/map-browser-qa.sh
+      - name: Smoke development render
+        run: node scripts/browser-smoke.mjs http://127.0.0.1:8080 /workspace/screenshots/smoke-dev.png
+      - name: Smoke production render
+        run: node scripts/browser-smoke.mjs http://127.0.0.1:8081 /workspace/screenshots/smoke-built.png --baseline /workspace/screenshots/smoke-dev.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: map-browser-review
+          path: screenshots/
+          retention-days: 7
