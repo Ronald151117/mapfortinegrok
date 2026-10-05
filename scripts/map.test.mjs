@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DESTINATIONS, filterDestinations } from "../src/lib/map/destinations.ts";
+import { DESTINATIONS, countryView, filterDestinations } from "../src/lib/map/destinations.ts";
 import { parseElevationTile } from "../src/lib/map/elevation.ts";
 import { baseStyle, buildingLayer, buildingRoofLayer, coverLayers, destinationLayers, labelLayers, reliefLayer, roadLayers } from "../src/lib/map/style.ts";
 
@@ -17,6 +17,12 @@ test("terrain requests accept Salvadoran tiles and reject malformed or foreign t
   for (const invalid of ["12/0/0", "15/1033/1890", "12/4096/1890", "12/1033/4096", "12//1890", "12/-1/1890", "12/1.5/1890", "NaN/1/1", "12/1033/1890/extra"]) {
     assert.equal(parseElevationTile(invalid), null, invalid);
   }
+});
+
+test("the country overview fits narrow screens within the supported zoom range", () => {
+  assert.equal(countryView(1280).zoom, 7.65);
+  assert.ok(countryView(390).zoom < countryView(1280).zoom);
+  assert.ok(countryView(320).zoom >= 6.2);
 });
 
 test("assembled style passes MapLibre's expression and source validation", async (context) => {

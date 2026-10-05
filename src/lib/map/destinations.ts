@@ -45,3 +45,10 @@ export function filterDestinations(query: string, kind: DestinationKind | "all" 
 }
 
 export const COUNTRY_VIEW = { center: [-88.92, 13.68] as [number, number], zoom: 7.65, pitch: 48, bearing: -12 };
+
+export function countryView(viewportWidth: number) {
+  // Fit the country's east-west span on narrow screens instead of cropping it.
+  const availableWidth = Math.max(240, viewportWidth - 48);
+  const zoom = Math.max(6.2, Math.min(COUNTRY_VIEW.zoom, Math.log2((availableWidth * 360) / (512 * 2.8))));
+  return { ...COUNTRY_VIEW, zoom };
+}

@@ -44,6 +44,8 @@ for MAP_QA_MODE in dev built; do
   qa screenshot "/workspace/screenshots/$MAP_QA_MODE-san-salvador.png"
   qa find role button click --name 'Volver al país'
   qa set viewport 390 844
+  qa open "http://127.0.0.1:$MAP_QA_PORT/"
+  qa wait --fn 'document.querySelector(".scene-button") && !document.querySelector(".scene-button").disabled'
   qa wait 2000
   qa eval 'if (document.documentElement.scrollWidth > window.innerWidth + 1) throw new Error("Horizontal overflow on mobile"); true'
   qa screenshot "/workspace/screenshots/$MAP_QA_MODE-mobile.png"

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { StyleSpecification } from "maplibre-gl";
 import { ArrowLeft, ArrowUpRight, Building2, ChevronDown, Compass, Globe2, Layers, LoaderCircle, MapPin, Mountain, Search, Sun, Sunset, Trees, Waves, X } from "lucide-react";
-import { COUNTRY_VIEW, DESTINATIONS, KIND_LABEL, filterDestinations, type Destination, type DestinationKind } from "@/lib/map/destinations";
+import { COUNTRY_VIEW, DESTINATIONS, KIND_LABEL, countryView, filterDestinations, type Destination, type DestinationKind } from "@/lib/map/destinations";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { decodeArchive, readTile, type Archive } from "@/lib/map/decode";
@@ -145,7 +145,7 @@ export function MapScreen() {
     setSelected(null);
     markerRef.current?.remove();
     markerRef.current = null;
-    map.flyTo({ ...COUNTRY_VIEW, pitch: pitched ? COUNTRY_VIEW.pitch : 0, duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1400 });
+    map.flyTo({ ...countryView(map.getContainer().clientWidth), pitch: pitched ? COUNTRY_VIEW.pitch : 0, duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1400 });
   };
 
   useEffect(() => {
@@ -194,7 +194,7 @@ export function MapScreen() {
       map = new maplibregl.Map({
         container: host.current,
         style: baseStyle(window.location.origin, landData, deptData) as unknown as StyleSpecification,
-        ...COUNTRY_VIEW,
+        ...countryView(host.current.clientWidth),
         maxPitch: 75,
         minZoom: 6.2,
         maxZoom: 17.5,
