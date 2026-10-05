@@ -1,10 +1,10 @@
-type Img = { width: number; height: number; data: Uint8ClampedArray };
+export type Img = { width: number; height: number; data: Uint8ClampedArray };
 
-function blank(size = 48): Uint8ClampedArray {
+export function blank(size = 48): Uint8ClampedArray {
   return new Uint8ClampedArray(size * size * 4);
 }
 
-function dot(data: Uint8ClampedArray, size: number, x: number, y: number, r: number, g: number, b: number, a = 255) {
+export function dot(data: Uint8ClampedArray, size: number, x: number, y: number, r: number, g: number, b: number, a = 255) {
   const ix = x | 0;
   const iy = y | 0;
   if (ix < 0 || iy < 0 || ix >= size || iy >= size) return;
@@ -19,7 +19,7 @@ function dot(data: Uint8ClampedArray, size: number, x: number, y: number, r: num
   data[i + 3] = oa * 255;
 }
 
-function fillCircle(data: Uint8ClampedArray, size: number, cx: number, cy: number, rad: number, rgb: [number, number, number]) {
+export function fillCircle(data: Uint8ClampedArray, size: number, cx: number, cy: number, rad: number, rgb: [number, number, number]) {
   const r2 = rad * rad;
   for (let y = Math.floor(cy - rad); y <= Math.ceil(cy + rad); y++) {
     for (let x = Math.floor(cx - rad); x <= Math.ceil(cx + rad); x++) {
@@ -29,11 +29,11 @@ function fillCircle(data: Uint8ClampedArray, size: number, cx: number, cy: numbe
   }
 }
 
-function fillRect(data: Uint8ClampedArray, size: number, x0: number, y0: number, x1: number, y1: number, rgb: [number, number, number]) {
+export function fillRect(data: Uint8ClampedArray, size: number, x0: number, y0: number, x1: number, y1: number, rgb: [number, number, number]) {
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) dot(data, size, x, y, rgb[0], rgb[1], rgb[2]);
 }
 
-function fillTri(
+export function fillTri(
   data: Uint8ClampedArray,
   size: number,
   ax: number,

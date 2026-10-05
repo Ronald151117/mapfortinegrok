@@ -28,22 +28,6 @@ export const DESTINATIONS: Destination[] = [
   { id: "la-union", name: "Golfo de Fonseca", region: "La Unión", kind: "coast", coordinates: [-87.824, 13.287], zoom: 10.7, pitch: 52, bearing: -20, description: "Donde termina la costa", detail: "Descubre La Unión y el paisaje de islas y volcanes que rodea el golfo." },
 ];
 
-export const KIND_LABEL: Record<DestinationKind, string> = {
-  city: "Ciudades", volcano: "Volcanes", lake: "Lagos", coast: "Costa", heritage: "Pueblos",
-};
-
-export function normalizeSearch(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("es");
-}
-
-export function filterDestinations(query: string, kind: DestinationKind | "all" = "all") {
-  const normalized = normalizeSearch(query);
-  return DESTINATIONS.filter((place) =>
-    (kind === "all" || place.kind === kind) &&
-    normalizeSearch(`${place.name} ${place.region} ${KIND_LABEL[place.kind]}`).includes(normalized),
-  );
-}
-
 export const COUNTRY_VIEW = { center: [-88.92, 13.68] as [number, number], zoom: 7.65, pitch: 48, bearing: -12 };
 
 export function countryView(viewportWidth: number) {

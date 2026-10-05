@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { StyleSpecification } from "maplibre-gl";
-import { ArrowLeft, ArrowUpRight, Building2, ChevronDown, Compass, Globe2, Layers, LoaderCircle, MapPin, Mountain, Search, Sun, Sunset, Trees, Waves, X } from "lucide-react";
-import { COUNTRY_VIEW, DESTINATIONS, KIND_LABEL, countryView, filterDestinations, type Destination, type DestinationKind } from "@/lib/map/destinations";
+import { ArrowLeft, ArrowUpRight, Box, Check, ChevronDown, Compass, Globe2, Layers, LoaderCircle, MapPin, Mountain, Sun, Sunset, Swords, Trees, X } from "lucide-react";
+import { COUNTRY_VIEW, DESTINATIONS, countryView, type Destination } from "@/lib/map/destinations";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { decodeArchive, readTile, type Archive } from "@/lib/map/decode";
 import { contextData, deptData, landData } from "@/lib/map/country";
 import { buildIcons } from "@/lib/map/icons";
+import { buildBattleArt } from "@/lib/map/battle-art";
+import { BATTLE_BUILDINGS_BEFORE, battleBuildingLayers, battleLayers, battleSources, gridColumns, gridRows } from "@/lib/map/battle";
 import { baseStyle, buildingLayer, buildingRoofLayer, coverLayers, destinationLayers, labelLayers, reliefLayer, roadLayers } from "@/lib/map/style";
 
 type MLMap = import("maplibre-gl").Map;
@@ -20,6 +22,21 @@ type PackIndex = Record<string, Record<string, PackPart[]>>;
 
 const packLoads = new Map<string, Promise<Archive | null>>();
 let packIndexPromise: Promise<PackIndex> | null = null;
+
+// Leaving the page aborts tile downloads still in flight; those are not errors worth reporting.
+let leaving = false;
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    leaving = true;
+  });
+  window.addEventListener("pageshow", () => {
+    leaving = false;
+  });
+}
+
+function reportTileError(err: unknown) {
+  if (!leaving) console.error(err);
+}
 
 function copyBytes(bytes: Uint8Array): ArrayBuffer {
   const out = new ArrayBuffer(bytes.byteLength);
@@ -56,7 +73,7 @@ function loadPack(url: string) {
     })
     .catch((err) => {
       packLoads.delete(url);
-      console.error(err);
+      reportTileError(err);
       return null;
     });
   packLoads.set(url, task);
@@ -75,7 +92,7 @@ async function tileBytes(name: string, z: number, x: number, y: number) {
     const bytes = readTile(archive, z, x, y);
     return bytes ? copyBytes(bytes) : emptyTile();
   } catch (err) {
-    console.error(err);
+    reportTileError(err);
     return emptyTile();
   }
 }
@@ -111,32 +128,90 @@ async function fetchMaybeGz(url: string) {
   return new Response(stream).arrayBuffer();
 }
 
+type ViewMode = "3d" | "2d" | "battle";
+
+const VIEW_OPTIONS: { mode: ViewMode; label: string; detail: string }[] = [
+  { mode: "3d", label: "3D", detail: "Relieve inclinado" },
+  { mode: "2d", label: "2D", detail: "Vista desde arriba" },
+  { mode: "battle", label: "Mapa de batalla", detail: "Estilo Fortnite · solo plano" },
+];
+
+const TREE_LAYERS = ["trees", "trees-close"];
+const COUNTRY_BOUNDS: [[number, number], [number, number]] = [[-90.13, 13.15], [-87.68, 14.45]];
+const MAP_BOUNDS: [[number, number], [number, number]] = [[-91.3, 12.2], [-86.7, 15.4]];
+// Wider limits so a portrait phone can still see the whole country on the flat map.
+const BATTLE_BOUNDS: [[number, number], [number, number]] = [[-93, 9.5], [-85, 18]];
+const TERRAIN = { source: "dem", exaggeration: 1.25 };
+const FLAT_ONLY = "No disponible en el mapa de batalla: es solo plano";
+
+type GridTicks = { cols: { label: string; x: number }[]; rows: { label: string; y: number }[] };
+
+function reducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Like a battle-royale overview: the whole country, flat and north up.
+function fitCountryFlat(map: MLMap, duration: number) {
+  const narrow = map.getContainer().clientWidth < 700;
+  map.fitBounds(COUNTRY_BOUNDS, {
+    pitch: 0,
+    bearing: 0,
+    duration,
+    maxZoom: 9,
+    padding: narrow ? { top: 90, bottom: 190, left: 26, right: 70 } : { top: 110, bottom: 150, left: 60, right: 110 },
+  });
+}
+
+function showLayers(map: MLMap, battle: boolean, trees: boolean) {
+  for (const layer of map.getStyle().layers) {
+    const isBattle = layer.id.startsWith("bt-");
+    const visible = battle ? isBattle : !isBattle && (trees || !TREE_LAYERS.includes(layer.id));
+    map.setLayoutProperty(layer.id, "visibility", visible ? "visible" : "none");
+  }
+}
+
+function hidden<T extends Record<string, unknown>>(layer: T) {
+  return { ...layer, layout: { ...((layer.layout as Record<string, unknown>) ?? {}), visibility: "none" } };
+}
+
 export function MapScreen() {
   const host = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
-  const [pitched, setPitched] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("3d");
+  const modeRef = useRef<ViewMode>("3d");
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<DestinationKind | "all">("all");
   const [selected, setSelected] = useState<Destination | null>(null);
   const [relief, setRelief] = useState(true);
+  const reliefRef = useRef(true);
   const [trees, setTrees] = useState(true);
+  const treesRef = useRef(true);
   const [sunset, setSunset] = useState(false);
+  const [ticks, setTicks] = useState<GridTicks | null>(null);
   const markerRef = useRef<import("maplibre-gl").Marker | null>(null);
   const markerFactory = useRef<((place: Destination) => void) | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const results = filterDestinations(query, kind);
+  const battle = viewMode === "battle";
+
+  const flyToPlace = (map: MLMap, place: Destination) => {
+    const mode = modeRef.current;
+    map.flyTo({
+      center: place.coordinates,
+      zoom: place.zoom,
+      pitch: mode === "3d" ? place.pitch : 0,
+      bearing: mode === "battle" ? 0 : place.bearing,
+      duration: reducedMotion() ? 0 : 1800,
+    });
+  };
 
   const visit = (place: Destination) => {
     const map = mapRef.current;
     if (!map || !ready) return;
     setSelected(place);
-    setPanelOpen(false);
     markerFactory.current?.(place);
-    map.flyTo({ center: place.coordinates, zoom: place.zoom, pitch: pitched ? place.pitch : 0, bearing: place.bearing, duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800 });
+    flyToPlace(map, place);
   };
 
   const resetView = () => {
@@ -145,20 +220,103 @@ export function MapScreen() {
     setSelected(null);
     markerRef.current?.remove();
     markerRef.current = null;
-    map.flyTo({ ...countryView(map.getContainer().clientWidth), pitch: pitched ? COUNTRY_VIEW.pitch : 0, duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1400 });
+    const mode = modeRef.current;
+    if (mode === "battle") {
+      fitCountryFlat(map, reducedMotion() ? 0 : 1400);
+      return;
+    }
+    map.flyTo({
+      ...countryView(map.getContainer().clientWidth),
+      pitch: mode === "3d" ? COUNTRY_VIEW.pitch : 0,
+      bearing: COUNTRY_VIEW.bearing,
+      duration: reducedMotion() ? 0 : 1400,
+    });
+  };
+
+  const applyMode = (next: ViewMode) => {
+    const map = mapRef.current;
+    setViewMenuOpen(false);
+    if (!map || !ready) return;
+    const wasBattle = modeRef.current === "battle";
+    modeRef.current = next;
+    setViewMode(next);
+    const duration = reducedMotion() ? 0 : 500;
+    if (next === "battle") {
+      // The battle map is flat only: no terrain, tilt or rotation.
+      showLayers(map, true, treesRef.current);
+      map.setTerrain(null);
+      map.dragRotate.disable();
+      map.touchZoomRotate.disableRotation();
+      map.touchPitch.disable();
+      map.keyboard.disableRotation();
+      map.setMaxBounds(BATTLE_BOUNDS);
+      if (selected) map.easeTo({ pitch: 0, bearing: 0, duration });
+      else fitCountryFlat(map, duration);
+      map.once("moveend", () => {
+        if (modeRef.current === "battle") map.setMaxPitch(0);
+      });
+      return;
+    }
+    if (wasBattle) {
+      showLayers(map, false, treesRef.current);
+      map.setMaxPitch(75);
+      map.setMaxBounds(MAP_BOUNDS);
+      map.dragRotate.enable();
+      map.touchZoomRotate.enableRotation();
+      map.touchPitch.enable();
+      map.keyboard.enableRotation();
+      map.setTerrain(reliefRef.current ? TERRAIN : null);
+      setTicks(null);
+    }
+    map.easeTo({ pitch: next === "3d" ? 55 : 0, duration });
   };
 
   useEffect(() => {
-    if (panelOpen) searchRef.current?.focus();
-  }, [panelOpen]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPanelOpen(false);
+    if (!viewMenuOpen) return;
+    const onDown = (event: PointerEvent) => {
+      if (!viewMenuRef.current?.contains(event.target as Node)) setViewMenuOpen(false);
     };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [viewMenuOpen]);
+
+  // Grid letters and numbers follow the map along the screen edges, like a battle-royale map.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !battle) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const { clientWidth: w, clientHeight: h } = map.getContainer();
+      const mid = map.getCenter();
+      setTicks({
+        cols: gridColumns()
+          .map((c) => ({ label: c.label, x: map.project([c.lon, mid.lat]).x }))
+          .filter((c) => c.x > 12 && c.x < w - 12),
+        rows: gridRows()
+          .map((r) => ({ label: r.label, y: map.project([mid.lng, r.lat]).y }))
+          .filter((r) => r.y > 30 && r.y < h - 12),
+      });
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    map.on("move", schedule);
+    map.on("resize", schedule);
+    return () => {
+      map.off("move", schedule);
+      map.off("resize", schedule);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [battle]);
 
   useEffect(() => {
     const el = host.current;
@@ -198,7 +356,7 @@ export function MapScreen() {
         maxPitch: 75,
         minZoom: 6.2,
         maxZoom: 17.5,
-        maxBounds: [[-91.3, 12.2], [-86.7, 15.4]],
+        maxBounds: MAP_BOUNDS,
         attributionControl: false,
         fadeDuration: 0,
         dragRotate: true,
@@ -232,8 +390,11 @@ export function MapScreen() {
         new maplibregl.AttributionControl({ compact: true, customAttribution: "© OpenStreetMap · SRTM" }),
         "bottom-right",
       );
-      map.on("pitch", () => {
-        if (!dead && map) setPitched(map.getPitch() > 6);
+      map.on("pitchend", () => {
+        if (dead || !map || modeRef.current === "battle") return;
+        const next = map.getPitch() > 6 ? "3d" : "2d";
+        modeRef.current = next;
+        setViewMode(next);
       });
 
       const paintNames = (target: MLMap, search: {
@@ -273,6 +434,7 @@ export function MapScreen() {
         if (dead || !map) return;
         try {
           for (const [name, img] of Object.entries(buildIcons())) map.addImage(name, img, { pixelRatio: 2 });
+          for (const [name, img] of Object.entries(buildBattleArt())) map.addImage(name, img, { pixelRatio: 2 });
           map.addSource("roads", { type: "vector", tiles: ["svt://roads/{z}/{x}/{y}"], minzoom: 6, maxzoom: 14 });
           for (const layer of roadLayers()) map.addLayer(layer as never);
           map.addSource("cover", { type: "vector", tiles: ["svt://cover/{z}/{x}/{y}"], minzoom: 6, maxzoom: 14 });
@@ -286,7 +448,7 @@ export function MapScreen() {
           map.moveLayer("dept-label");
           // Relief belongs above land cover, so forests do not hide its shading.
           map.addLayer(reliefLayer() as never, "water");
-          map.setTerrain({ source: "dem", exaggeration: 1.25 });
+          map.setTerrain(TERRAIN);
           map.addSource("destinations", {
             type: "geojson",
             data: { type: "FeatureCollection", features: DESTINATIONS.map((place) => ({
@@ -295,14 +457,16 @@ export function MapScreen() {
             })) },
           });
           for (const layer of destinationLayers()) map.addLayer(layer as never);
+          // The battle map reuses the same real sources and stays hidden until chosen.
+          for (const [id, source] of Object.entries(battleSources())) map.addSource(id, source as never);
+          for (const layer of battleLayers()) map.addLayer(hidden(layer) as never);
           map.on("click", "destination-points", (event) => {
             const id = event.features?.[0]?.properties?.id;
             const place = DESTINATIONS.find((item) => item.id === id);
             if (!place || !map) return;
             setSelected(place);
-            setPanelOpen(false);
             markerFactory.current?.(place);
-            map.flyTo({ center: place.coordinates, zoom: place.zoom, bearing: place.bearing, pitch: map.getPitch() > 6 ? place.pitch : 0, duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800 });
+            flyToPlace(map, place);
           });
           map.on("mouseenter", "destination-points", () => { if (map) map.getCanvas().style.cursor = "pointer"; });
           map.on("mouseleave", "destination-points", () => { if (map) map.getCanvas().style.cursor = ""; });
@@ -328,8 +492,10 @@ export function MapScreen() {
                 maxzoom: 14,
               });
               const beforeTrees = map.getLayer("trees") ? "trees" : undefined;
-              map.addLayer(buildingLayer() as never, beforeTrees);
-              map.addLayer(buildingRoofLayer() as never, beforeTrees);
+              const isBattle = modeRef.current === "battle";
+              const regular = [buildingLayer(), buildingRoofLayer()];
+              for (const layer of regular) map.addLayer((isBattle ? hidden(layer) : layer) as never, beforeTrees);
+              for (const layer of battleBuildingLayers()) map.addLayer((isBattle ? layer : hidden(layer)) as never, BATTLE_BUILDINGS_BEFORE);
             }
           };
           map.on("moveend", loadNearby);
@@ -359,60 +525,71 @@ export function MapScreen() {
     };
   }, []);
 
+  const current = VIEW_OPTIONS.find((option) => option.mode === viewMode) ?? VIEW_OPTIONS[0];
+
   return (
-    <main className="map-shell relative h-dvh w-full overflow-hidden bg-ocean">
+    <main className={`map-shell relative h-dvh w-full overflow-hidden bg-ocean ${battle ? "is-battle" : ""}`}>
       <div ref={host} className="map-host absolute inset-0 h-full w-full" aria-label="Mapa interactivo de El Salvador" />
+
+      {battle && ticks && <div className="battle-grid" aria-hidden="true">
+        <div className="battle-ruler battle-ruler-top">{ticks.cols.map((c) => <span key={c.label} style={{ left: c.x }}>{c.label}</span>)}</div>
+        <div className="battle-ruler battle-ruler-left">{ticks.rows.map((r) => <span key={r.label} style={{ top: r.y }}>{r.label}</span>)}</div>
+      </div>}
+
       <header className="atlas-heading">
-        <div className="atlas-logo" aria-hidden="true"><Mountain size={26} strokeWidth={2.5} /></div>
-        <div><span className="atlas-kicker">EL SALVADOR · MUNDO ABIERTO</span><h1>Cuzcatlán<span className="atlas-dot">.</span></h1></div>
+        <div className="atlas-logo" aria-hidden="true">{battle ? <Swords size={24} strokeWidth={2.5} /> : <Mountain size={26} strokeWidth={2.5} />}</div>
+        <div><span className="atlas-kicker">{battle ? "MAPA DE BATALLA · PLANO" : "MAPA INTERACTIVO"}</span><h1>El Salvador<span className="atlas-dot">.</span></h1></div>
       </header>
 
-      <div className="explore-controls">
-        <button className="explore-button" aria-expanded={panelOpen} aria-controls="destination-panel" onClick={() => setPanelOpen((value) => !value)}>
-          <Search size={18} /><span>Explorar lugares</span><ChevronDown size={16} className={panelOpen ? "turned" : ""} />
-        </button>
-        {selected && <button className="country-button" onClick={resetView} disabled={!ready} title="Ver todo El Salvador"><Globe2 size={18} /><span>Todo el país</span></button>}
-      </div>
-
-      {panelOpen && <section className="destination-panel" id="destination-panel" aria-label="Explorar lugares de El Salvador">
-        <div className="panel-top"><span>ELIGE TU PRÓXIMA PARADA</span><button className="icon-button" aria-label="Cerrar explorador" onClick={() => setPanelOpen(false)}><X size={18} /></button></div>
-        <label className="destination-search"><Search size={17} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Busca un lugar o departamento" aria-label="Buscar destino" />{query && <button className="icon-button" aria-label="Limpiar búsqueda" onClick={() => setQuery("")}><X size={15} /></button>}</label>
-        <div className="destination-filters" aria-label="Filtrar destinos">
-          <button aria-pressed={kind === "all"} onClick={() => setKind("all")}>Todos</button>
-          {(Object.entries(KIND_LABEL) as [DestinationKind, string][]).map(([value, label]) => <button key={value} aria-pressed={kind === value} onClick={() => setKind(value)}>{label}</button>)}
-        </div>
-        <div className="destination-list">
-          {results.map((place) => <button key={place.id} className="destination-item" disabled={!ready} onClick={() => visit(place)}>
-            <span className={`destination-icon ${place.kind}`} aria-hidden="true">{place.kind === "volcano" ? <Mountain size={20} /> : place.kind === "lake" || place.kind === "coast" ? <Waves size={20} /> : place.kind === "city" ? <Building2 size={20} /> : <MapPin size={20} />}</span>
-            <span className="destination-copy"><strong>{place.name}</strong><small>{place.region}</small></span><ArrowUpRight size={16} />
-          </button>)}
-          {!results.length && <p className="empty-search">No encontramos ese destino. Prueba con un departamento o cambia el filtro.</p>}
-        </div>
-        <p className="panel-foot">12 lugares para descubrir · Geografía real</p>
-      </section>}
+      {selected && <div className="explore-controls">
+        <button className="country-button" onClick={resetView} disabled={!ready} title="Ver todo El Salvador"><Globe2 size={18} /><span>Todo el país</span></button>
+      </div>}
 
       <aside className="scene-controls" aria-label="Controles de la vista">
-        <button disabled={!ready} aria-pressed={pitched} className="scene-button" title={pitched ? "Cambiar a vista 2D" : "Cambiar a vista 3D"} onClick={() => {
-          const map = mapRef.current;
-          if (!map) return;
-          const next = map.getPitch() < 6;
-          map.easeTo({ pitch: next ? 55 : 0, duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 500 });
-        }}><Layers size={18} /><span>{pitched ? "3D" : "2D"}</span></button>
-        <button disabled={!ready} aria-pressed={relief} className="scene-button" title="Activar o desactivar el relieve" onClick={() => {
+        <div className="view-picker" ref={viewMenuRef}>
+          <button
+            disabled={!ready}
+            aria-haspopup="menu"
+            aria-expanded={viewMenuOpen}
+            aria-pressed={viewMode !== "2d"}
+            className="scene-button"
+            title="Elegir vista: 3D, 2D o mapa de batalla"
+            onClick={() => setViewMenuOpen((open) => !open)}
+          >
+            {battle ? <Swords size={18} /> : <Layers size={18} />}
+            <span className="view-current">{battle ? "Batalla" : current.label}<ChevronDown size={11} className={viewMenuOpen ? "turned" : ""} /></span>
+          </button>
+          {viewMenuOpen && <div className="view-menu" role="menu" aria-label="Vista del mapa">
+            {VIEW_OPTIONS.map((option) => <button
+              key={option.mode}
+              role="menuitemradio"
+              aria-checked={viewMode === option.mode}
+              className="view-option"
+              onClick={() => applyMode(option.mode)}
+            >
+              <span className={`view-option-icon ${option.mode}`} aria-hidden="true">{option.mode === "battle" ? <Swords size={18} /> : option.mode === "3d" ? <Box size={18} /> : <Layers size={18} />}</span>
+              <span className="view-option-copy"><strong>{option.label}</strong><small>{option.detail}</small></span>
+              {viewMode === option.mode && <Check size={16} aria-hidden="true" />}
+            </button>)}
+          </div>}
+        </div>
+        <button disabled={!ready || battle} aria-pressed={relief && !battle} className="scene-button" title={battle ? FLAT_ONLY : "Activar o desactivar el relieve"} onClick={() => {
           const map = mapRef.current;
           if (!map) return;
           const next = !relief;
-          map.setTerrain(next ? { source: "dem", exaggeration: 1.25 } : null);
+          map.setTerrain(next ? TERRAIN : null);
+          reliefRef.current = next;
           setRelief(next);
         }}><Mountain size={18} /><span>Relieve</span></button>
-        <button disabled={!ready} aria-pressed={trees} className="scene-button" title="Mostrar u ocultar árboles" onClick={() => {
+        <button disabled={!ready || battle} aria-pressed={trees && !battle} className="scene-button" title={battle ? FLAT_ONLY : "Mostrar u ocultar árboles"} onClick={() => {
           const map = mapRef.current;
           if (!map) return;
           const next = !trees;
-          for (const id of ["trees", "trees-close"]) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", next ? "visible" : "none");
+          for (const id of TREE_LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", next ? "visible" : "none");
+          treesRef.current = next;
           setTrees(next);
         }}><Trees size={18} /><span>Árboles</span></button>
-        <button disabled={!ready} aria-pressed={sunset} className="scene-button" title={sunset ? "Cambiar a luz de día" : "Cambiar a atardecer"} onClick={() => {
+        <button disabled={!ready || battle} aria-pressed={sunset && !battle} className="scene-button" title={battle ? FLAT_ONLY : sunset ? "Cambiar a luz de día" : "Cambiar a atardecer"} onClick={() => {
           const map = mapRef.current;
           if (!map) return;
           const next = !sunset;
@@ -431,9 +608,12 @@ export function MapScreen() {
         <button className="place-back" onClick={resetView}><ArrowLeft size={15} /> Volver al país</button>
         <div className="place-card-heading"><div><span className="atlas-kicker">{selected.region}</span><h2>{selected.name}</h2></div><span className={`destination-icon ${selected.kind}`} aria-hidden="true"><MapPin size={22} /></span></div>
         <p className="place-tagline">{selected.description}</p><p className="place-detail">{selected.detail}</p>
-      </section> : <div className="map-intro"><span className="atlas-kicker">UN PAÍS. MIL HISTORIAS.</span><p>De los volcanes al Pacífico.</p><button disabled={!ready} onClick={() => visit(DESTINATIONS[2])}>Descubre Coatepeque <ArrowUpRight size={16} /></button></div>}
+      </section> : battle ? <div className="map-intro battle-intro"><span className="atlas-kicker">MAPA DE BATALLA · DATOS REALES</span><p>¿Dónde aterrizas?</p><button disabled={!ready} onClick={() => visit(DESTINATIONS[0])}>Aterriza en San Salvador <ArrowUpRight size={16} /></button></div>
+        : <div className="map-intro"><span className="atlas-kicker">UN PAÍS. MIL HISTORIAS.</span><p>De los volcanes al Pacífico.</p><button disabled={!ready} onClick={() => visit(DESTINATIONS[2])}>Descubre Coatepeque <ArrowUpRight size={16} /></button></div>}
 
-      <div className="map-hints"><Compass size={15} /><span>Arrastra para explorar · Rueda para acercar · Botón derecho para girar</span><span className="touch-hint">Arrastra para explorar · Dos dedos para acercar y girar</span></div>
+      <div className="map-hints"><Compass size={15} />{battle
+        ? <><span>Arrastra para explorar · Rueda para acercar · Mapa plano, sin giro</span><span className="touch-hint">Arrastra para explorar · Dos dedos para acercar</span></>
+        : <><span>Arrastra para explorar · Rueda para acercar · Botón derecho para girar</span><span className="touch-hint">Arrastra para explorar · Dos dedos para acercar y girar</span></>}</div>
       {(!ready || failure) && <div className={`map-status ${failure ? "map-status-error" : ""}`} role="status">
         {failure ? <><MapPin size={22} /><p>{failure}</p><button onClick={() => window.location.reload()}>Reintentar</button></> : <><LoaderCircle className="loading-spin" size={22} /><p>Preparando El Salvador…</p></>}
       </div>}

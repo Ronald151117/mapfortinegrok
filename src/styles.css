@@ -140,7 +140,7 @@
   }
 }
 
-/* The explorer stays compact so the landscape remains the main surface. */
+/* The controls stay compact so the landscape remains the main surface. */
 .atlas-heading { position: absolute; top: 24px; left: 24px; z-index: 3; display: flex; align-items: center; gap: 12px; pointer-events: none; }
 .atlas-logo { width: 48px; height: 48px; display: grid; place-items: center; background: #f7d85b; border: 2px solid var(--color-ink); border-radius: 14px; box-shadow: 0 3px 0 var(--color-ink); }
 .atlas-kicker { display: block; font-size: 10px; font-weight: 700; letter-spacing: 1.6px; line-height: 1.5; }
@@ -148,33 +148,15 @@
 .atlas-heading h1 { margin: -2px 0 0; color: #fff6e4; font-family: var(--font-display); font-size: 42px; line-height: 1.1; letter-spacing: -1px; text-shadow: 2px 3px 0 #1b2430, -1px -1px 0 #1b2430, 1px -1px 0 #1b2430, -1px 1px 0 #1b2430; }
 .atlas-dot { color: #f7d85b; }
 .explore-controls { position: absolute; z-index: 4; top: 100px; left: 24px; display: flex; flex-wrap: wrap; gap: 8px; }
-.explore-button, .country-button { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 15px; border: 2px solid var(--color-ink); border-radius: 12px; background: var(--color-cream); color: var(--color-ink); font-size: 13px; font-weight: 700; box-shadow: 0 3px 0 var(--color-ink); }
-.country-button { background: #f7d85b; }
+.country-button { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 15px; border: 2px solid var(--color-ink); border-radius: 12px; background: #f7d85b; color: var(--color-ink); font-size: 13px; font-weight: 700; box-shadow: 0 3px 0 var(--color-ink); }
 .turned { transform: rotate(180deg); }
-.destination-panel { position: absolute; z-index: 5; top: 156px; left: 24px; width: 350px; max-height: calc(100dvh - 220px); display: flex; flex-direction: column; overflow: hidden; border: 2px solid var(--color-ink); border-radius: 18px; background: var(--color-cream); box-shadow: 0 5px 0 var(--color-ink), 0 16px 36px #123e4930; }
-.panel-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; font-size: 10px; letter-spacing: 1px; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; border: 0; border-radius: 8px; color: var(--color-ink); background: transparent; }
 .icon-button:hover { background: #1b243010; }
-.destination-search { margin: 0 14px; padding: 3px 10px; display: flex; gap: 8px; align-items: center; min-height: 44px; border: 1px solid #1b243030; border-radius: 10px; background: #fffaf0; }
-.destination-search input { min-width: 0; width: 100%; border: 0; outline: none; background: transparent; color: var(--color-ink); font-family: inherit; font-size: 13px; }
-.destination-search:focus-within { outline: 2px solid #228dbd; outline-offset: 2px; }
-.destination-filters { padding: 12px 14px; display: flex; gap: 6px; flex-wrap: wrap; }
-.destination-filters button { min-height: 34px; border: 1px solid #1b243025; border-radius: 8px; padding: 0 9px; font-family: inherit; font-size: 11px; background: transparent; color: var(--color-ink); }
-.destination-filters button[aria-pressed="true"] { background: var(--color-ink); color: var(--color-cream); }
-.destination-list { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 0 8px 8px; }
-.destination-item { display: flex; width: 100%; align-items: center; gap: 12px; min-height: 66px; text-align: left; border: 0; border-radius: 10px; padding: 10px; background: transparent; color: var(--color-ink); font-family: inherit; }
-.destination-item:hover { background: #f7d85b40; }
-.destination-item:disabled { opacity: .5; }
-.destination-copy { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.destination-copy strong { font-size: 14px; line-height: 1.2; }
-.destination-copy small { font-size: 11px; color: #5b6666; line-height: 1.3; }
 .destination-icon { width: 40px; height: 40px; flex-shrink: 0; display: grid; place-items: center; background: #dfecc9; border: 1px solid #1b243020; border-radius: 11px; }
 .destination-icon.volcano { background: #f5d2b6; }
 .destination-icon.lake { background: #bce8eb; }
 .destination-icon.coast { background: #f4e4a6; }
 .destination-icon.city { background: #dedceb; }
-.panel-foot { padding: 10px 14px; margin: 0; border-top: 1px solid #1b243015; font-size: 10px; color: #69746c; }
-.empty-search { margin: 6px 10px 16px; font-size: 13px; line-height: 1.6; }
 .scene-controls { position: absolute; right: 24px; top: 24px; z-index: 3; display: flex; gap: 6px; }
 .scene-button { min-width: 58px; min-height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border: 2px solid var(--color-ink); border-radius: 12px; background: var(--color-cream); color: var(--color-ink); box-shadow: 0 3px 0 var(--color-ink); font-family: inherit; font-size: 10px; }
 .scene-button[aria-pressed="true"] { background: #f7d85b; }
@@ -211,9 +193,8 @@ button:focus-visible { outline: 3px solid #228dbd; outline-offset: 4px; }
   .atlas-heading h1 { font-size: 32px; }
   .atlas-heading .atlas-kicker { font-size: 8px; letter-spacing: 1px; }
   .explore-controls { top: 82px; left: 16px; gap: 6px; }
-  .explore-button, .country-button { min-height: 42px; padding: 0 12px; font-size: 12px; gap: 7px; }
+  .country-button { min-height: 42px; padding: 0 12px; font-size: 12px; gap: 7px; }
   .country-button span { display: none; }
-  .destination-panel { top: 136px; left: 16px; width: min(350px, calc(100% - 32px)); max-height: calc(100dvh - 205px); }
   .scene-controls { top: 16px; right: 12px; flex-direction: column; gap: 6px; }
   .scene-button { min-width: 48px; min-height: 48px; border-radius: 10px; font-size: 9px; gap: 3px; }
   .map-shell .maplibregl-ctrl-top-right { top: 238px; right: 2px; }
@@ -232,6 +213,46 @@ button:focus-visible { outline: 3px solid #228dbd; outline-offset: 4px; }
 @media (max-height: 500px) and (min-width: 701px) {
   .place-detail, .place-tagline { display: none; }
   .place-card { bottom: 55px; padding: 10px 14px; }
-  .destination-panel { max-height: calc(100dvh - 180px); }
 }
 @media (prefers-reduced-motion: reduce) { .loading-spin { animation: none; } }
+
+/* View picker: 3D, 2D and the flat battle map live behind the first scene button. */
+.view-picker { position: relative; }
+.view-current { display: inline-flex; align-items: center; gap: 2px; }
+.view-menu { position: absolute; z-index: 6; top: calc(100% + 10px); right: 0; width: 248px; padding: 6px; display: flex; flex-direction: column; gap: 2px; border: 2px solid var(--color-ink); border-radius: 14px; background: var(--color-cream); box-shadow: 0 4px 0 var(--color-ink), 0 14px 30px #123e4930; }
+.view-option { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 7px 8px; border: 0; border-radius: 10px; background: transparent; color: var(--color-ink); font-family: inherit; text-align: left; }
+.view-option:hover, .view-option[aria-checked="true"] { background: #f7d85b55; }
+.view-option-icon { width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; border: 1px solid #1b243022; border-radius: 10px; background: #dfecc9; }
+.view-option-icon.battle { background: #2c86d6; color: #fff; border-color: var(--color-ink); }
+.view-option-copy { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.view-option-copy strong { font-size: 13px; line-height: 1.2; }
+.view-option-copy small { font-size: 11px; color: #5b6666; line-height: 1.3; }
+.scene-button:disabled[title] { cursor: not-allowed; }
+
+/* Battle map: lettered/numbered grid rulers along the screen edges. */
+.battle-ruler { position: absolute; z-index: 2; pointer-events: none; background: #0f1b2ccc; color: #fff; font-family: var(--font-display); font-size: 13px; letter-spacing: 0.5px; }
+.battle-ruler span { position: absolute; transform: translate(-50%, -50%); text-shadow: 0 1px 0 #000; }
+.battle-ruler-top { top: 0; left: 0; right: 0; height: 22px; }
+.battle-ruler-top span { top: 11px; }
+.battle-ruler-left { top: 22px; left: 0; bottom: 0; width: 22px; }
+.battle-ruler-left span { left: 11px; transform: translate(-50%, -50%); margin-top: -22px; }
+.is-battle .atlas-heading { top: 40px; left: 40px; }
+.is-battle .scene-controls { top: 38px; }
+.is-battle .explore-controls { top: 116px; left: 40px; }
+.is-battle .maplibregl-ctrl-top-right { top: 108px; }
+.is-battle .atlas-logo { background: #2c86d6; color: #fff; }
+.is-battle .place-card, .is-battle .map-intro { left: 40px; }
+.battle-intro button { background: #2c86d6; color: #fff; }
+@media (max-width: 700px) {
+  .view-menu { top: 0; right: calc(100% + 8px); width: min(248px, calc(100vw - 96px)); }
+  .battle-ruler { font-size: 11px; }
+  .battle-ruler-top { height: 18px; }
+  .battle-ruler-top span { top: 9px; }
+  .battle-ruler-left { top: 18px; width: 18px; }
+  .battle-ruler-left span { left: 9px; margin-top: -18px; }
+  .is-battle .atlas-heading { top: 28px; left: 28px; }
+  .is-battle .scene-controls { top: 28px; }
+  .is-battle .explore-controls { top: 90px; left: 28px; }
+  .is-battle .maplibregl-ctrl-top-right { top: 250px; }
+  .is-battle .place-card, .is-battle .map-intro { left: 28px; }
+}
