@@ -1,0 +1,21 @@
+{
+  "source": "Geofabrik central-america/el-salvador-261003.osm.pbf",
+  "date": "2026-10-03",
+  "license": "ODbL © OpenStreetMap contributors",
+  "elevation": "AWS Terrain Tiles (Mapzen/Terrarium, SRTM)",
+  "bounds": "geoBoundaries ADM0/ADM1 (CC BY-SA), costa clasificada con el relieve",
+  "counts": {
+    "roads": 118473,
+    "buildings": 394164,
+    "land": 10181,
+    "water": 779,
+    "streetsNamed": 8032,
+    "places": 4160,
+    "pois": 7276,
+    "graphEdges": 495403,
+    "graphNodes": 199698,
+    "trees": 9000,
+    "islands": 76,
+    "coastWalls": 0
+  }
+}
