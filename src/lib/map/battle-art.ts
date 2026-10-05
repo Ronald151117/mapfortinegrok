@@ -1,4 +1,4 @@
-import { blank, dot, fillCircle, fillTri, type Img } from "@/lib/map/icons";
+import { blank, dot, fillCircle, fillTri, type Img } from "./icons.ts";
 
 type RGB = [number, number, number];
 

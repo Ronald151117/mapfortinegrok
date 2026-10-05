@@ -53,3 +53,22 @@ test("assembled style passes MapLibre's expression and source validation", async
   style.layers.push(...battleLayers(), ...battleBuildingLayers());
   assert.deepEqual(validateStyleMin(style).map((error) => error.message), []);
 });
+
+test("the embeddable El Salvador map builds a valid flat style for other apps", async (context) => {
+  let validateStyleMin;
+  try {
+    ({ validateStyleMin } = await import("@maplibre/maplibre-gl-style-spec"));
+  } catch (error) {
+    if (error.code !== "ERR_MODULE_NOT_FOUND") throw error;
+    context.skip("Install the project's dependencies to run MapLibre validation");
+    return;
+  }
+  const { crearMapaSv } = await import("../src/embed/mapa-sv.ts");
+  const protocols = [];
+  const { style } = crearMapaSv({ base: "https://example.org/", maplibregl: { addProtocol: (name) => protocols.push(name) } });
+  assert.deepEqual(protocols, ["svt"]);
+  assert.equal(style.glyphs, "https://example.org/fonts/{fontstack}/{range}.pbf");
+  assert.ok(style.layers.some((layer) => layer.id === "bt-building"));
+  assert.ok(!style.layers.some((layer) => layer.id === "bt-grid"));
+  assert.deepEqual(validateStyleMin(style).map((error) => error.message), []);
+});

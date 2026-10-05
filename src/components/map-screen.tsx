@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowUpRight, Box, Check, ChevronDown, Compass, Globe2, Laye
 import { COUNTRY_VIEW, DESTINATIONS, countryView, type Destination } from "@/lib/map/destinations";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { decodeArchive, readTile, type Archive } from "@/lib/map/decode";
+import { createPackReader, fetchMaybeGz, svtHandler } from "@/lib/map/packs";
 import { contextData, deptData, landData } from "@/lib/map/country";
 import { buildIcons } from "@/lib/map/icons";
 import { buildBattleArt } from "@/lib/map/battle-art";
@@ -13,89 +13,7 @@ import { baseStyle, buildingLayer, buildingRoofLayer, coverLayers, destinationLa
 
 type MLMap = import("maplibre-gl").Map;
 
-const EMPTY_TILE = Uint8Array.from([
-  0x1a, 0x0c, 0x0a, 0x05, 0x65, 0x6d, 0x70, 0x74, 0x79, 0x28, 0x02, 0x78, 0x80, 0x20,
-]);
-
-type PackPart = { url: string; x0?: number; x1?: number };
-type PackIndex = Record<string, Record<string, PackPart[]>>;
-
-const packLoads = new Map<string, Promise<Archive | null>>();
-let packIndexPromise: Promise<PackIndex> | null = null;
-
-// Leaving the page aborts tile downloads still in flight; those are not errors worth reporting.
-let leaving = false;
-if (typeof window !== "undefined") {
-  window.addEventListener("pagehide", () => {
-    leaving = true;
-  });
-  window.addEventListener("pageshow", () => {
-    leaving = false;
-  });
-}
-
-function reportTileError(err: unknown) {
-  if (!leaving) console.error(err);
-}
-
-function copyBytes(bytes: Uint8Array): ArrayBuffer {
-  const out = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(out).set(bytes);
-  return out;
-}
-
-function emptyTile() {
-  return copyBytes(EMPTY_TILE);
-}
-
-function packIndex() {
-  if (!packIndexPromise) {
-    const task = fetch("/data/packs/index.json").then(async (r) => {
-      if (!r.ok) throw new Error("indice");
-      return (await r.json()) as PackIndex;
-    });
-    task.catch(() => {
-      if (packIndexPromise === task) packIndexPromise = null;
-    });
-    packIndexPromise = task;
-  }
-  return packIndexPromise;
-}
-
-function loadPack(url: string) {
-  const hit = packLoads.get(url);
-  if (hit) return hit;
-  const task = fetch(url)
-    .then(async (r) => {
-      if (r.status === 404) return null;
-      if (!r.ok) throw new Error(url);
-      return decodeArchive(await r.arrayBuffer());
-    })
-    .catch((err) => {
-      packLoads.delete(url);
-      reportTileError(err);
-      return null;
-    });
-  packLoads.set(url, task);
-  return task;
-}
-
-async function tileBytes(name: string, z: number, x: number, y: number) {
-  try {
-    const index = await packIndex();
-    const parts = index[name]?.[String(z)];
-    if (!parts?.length) return emptyTile();
-    const part = parts.find((p) => p.x0 == null || (p.x1 != null && x >= p.x0 && x <= p.x1));
-    if (!part) return emptyTile();
-    const archive = await loadPack(part.url);
-    if (!archive) return emptyTile();
-    const bytes = readTile(archive, z, x, y);
-    return bytes ? copyBytes(bytes) : emptyTile();
-  } catch (err) {
-    reportTileError(err);
-    return emptyTile();
-  }
-}
+const tileBytes = createPackReader();
 
 async function installWorker(maplibregl: typeof import("maplibre-gl")) {
   const [workerRes, sharedRes] = await Promise.all([
@@ -116,16 +34,6 @@ async function installWorker(maplibregl: typeof import("maplibre-gl")) {
     URL.revokeObjectURL(workerUrl);
     URL.revokeObjectURL(sharedUrl);
   };
-}
-
-async function fetchMaybeGz(url: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(url);
-  const buf = await res.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  if (bytes.length < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) return buf;
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return new Response(stream).arrayBuffer();
 }
 
 type ViewMode = "3d" | "2d" | "battle";
@@ -343,11 +251,7 @@ export function MapScreen() {
       } catch {
         /* not registered yet */
       }
-      maplibregl.addProtocol("svt", async (request) => {
-        const m = request.url.match(/svt:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)/);
-        if (!m) return { data: emptyTile() };
-        return { data: await tileBytes(m[1], Number(m[2]), Number(m[3]), Number(m[4])) };
-      });
+      maplibregl.addProtocol("svt", svtHandler(tileBytes));
 
       map = new maplibregl.Map({
         container: host.current,

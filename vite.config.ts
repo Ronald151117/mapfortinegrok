@@ -175,6 +175,11 @@ export default defineConfig(({ command, isPreview }) => ({
             // manifest + head-tag middleware). Nitro v3 defaults serverDir to
             // false, so removing this silently unwires /?install=1 on deploys.
             serverDir: "./server",
+            // Map data and fonts are read cross-origin by apps that embed the flat map (scripts/build-embed.mjs).
+            routeRules: {
+              "/data/**": { headers: { "access-control-allow-origin": "*" } },
+              "/fonts/**": { headers: { "access-control-allow-origin": "*" } },
+            },
           }),
         ]
       : []),

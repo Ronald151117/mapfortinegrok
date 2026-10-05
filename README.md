@@ -25,6 +25,16 @@ Datos: © OpenStreetMap · relieve SRTM.
 
 El contexto regional usa tierra de [Natural Earth](https://www.naturalearthdata.com/about/terms-of-use/), de dominio público. Esa capa es una referencia regional de baja resolución; las huellas y límites del mapa salvadoreño conservan los datos detallados existentes.
 
+## Usar el mapa plano en otras apps
+
+`npm run build:embed` genera `dist-embed/mapa-sv.js`: el mapa de batalla plano empaquetado sin dependencias (la app que lo usa pone su propio MapLibre). Visual GPS lo copia a `src/vendor/mapa-sv.js` y lo ofrece como estilo **El Salvador 2D** en todos sus mapas. Los datos (`/data`) y las fuentes (`/fonts`) de este sitio se sirven con CORS abierto para eso; el relieve se pide directo a las teselas Terrarium públicas.
+
+```js
+const sv = crearMapaSv({ base: "https://<este sitio>", maplibregl });
+const map = new maplibregl.Map({ container, style: sv.style });
+sv.instalar(map);
+```
+
 ## Verificación
 
 ```bash
