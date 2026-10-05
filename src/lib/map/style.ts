@@ -1,12 +1,12 @@
 const INK = "#1b2430";
 const CREAM = "#fff6e4";
-const OCEAN = "#2f8fe0";
-const GRASS = "#62d24e";
+const OCEAN = "#228dbd";
+const GRASS = "#92cf64";
 const ACCENT = "#ff7a32";
 
 const empty = { type: "FeatureCollection" as const, features: [] as unknown[] };
 
-export function baseStyle(origin: string, land: unknown = empty, departments: unknown = empty) {
+export function baseStyle(origin: string, land: unknown = empty, departments: unknown = empty, contextLand: unknown = empty) {
   return {
     version: 8 as const,
     name: "Cuzcatlán",
@@ -15,10 +15,10 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
       "Lilita One": `${origin}/fonts/LilitaOne-Regular.ttf`,
       "Nunito Bold": `${origin}/fonts/Nunito-Bold.ttf`,
     },
-    light: { anchor: "viewport", color: "#fff4e0", intensity: 0.5, position: [1.15, 210, 28] },
+    light: { anchor: "viewport", color: "#fff4e0", intensity: 0.42, position: [1.15, 210, 38] },
     sky: {
-      "sky-color": "#7ec8f8",
-      "horizon-color": "#f8e7c4",
+      "sky-color": "#88d6ee",
+      "horizon-color": "#fff2d4",
       "fog-color": "#c5e6f8",
       "sky-horizon-blend": 0.55,
       "horizon-fog-blend": 0.62,
@@ -33,6 +33,7 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
         tileSize: 256,
         minzoom: 5,
         maxzoom: 14,
+        bounds: [-91.3, 12.2, -86.7, 15.4],
         attribution: "Relieve: AWS Terrain Tiles / SRTM",
       },
       hill: {
@@ -42,8 +43,10 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
         tileSize: 256,
         minzoom: 5,
         maxzoom: 14,
+        bounds: [-91.3, 12.2, -86.7, 15.4],
       },
       land: { type: "geojson", data: land },
+      "context-land": { type: "geojson", data: contextLand },
       departments: { type: "geojson", data: departments },
       places: { type: "geojson", data: empty },
       pois: { type: "geojson", data: empty },
@@ -53,6 +56,7 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
     },
     layers: [
       { id: "ocean", type: "background", paint: { "background-color": OCEAN } },
+      { id: "context-land", type: "fill", source: "context-land", paint: { "fill-color": "#839e78" } },
       {
         id: "land",
         type: "fill",
@@ -64,13 +68,13 @@ export function baseStyle(origin: string, land: unknown = empty, departments: un
         type: "line",
         source: "departments",
         maxzoom: 11,
-        paint: { "line-color": INK, "line-opacity": 0.28, "line-width": 1.4, "line-dasharray": [2.2, 1.6] },
+        paint: { "line-color": INK, "line-opacity": 0.18, "line-width": 1, "line-dasharray": [2.2, 1.6] },
       },
       {
         id: "dept-label",
         type: "symbol",
         source: "departments",
-        maxzoom: 10,
+        maxzoom: 8.5,
         layout: {
           "text-field": ["get", "n"],
           "text-font": ["Lilita One"],
@@ -89,23 +93,23 @@ export function reliefLayer() {
     type: "hillshade",
     source: "hill",
     paint: {
-      "hillshade-exaggeration": 0.16,
-      "hillshade-shadow-color": "#2f6a32",
+      "hillshade-exaggeration": 0.38,
+      "hillshade-shadow-color": "#315c50",
       "hillshade-highlight-color": "#fff6d4",
-      "hillshade-accent-color": "#3a8a3c",
+      "hillshade-accent-color": "#608b47",
       "hillshade-illumination-direction": 200,
     },
   };
 }
 
 const LANDUSE: Record<number, string> = {
-  0: "#b6ea62",
+  0: "#d5d9b6",
   1: "#f0d48a",
   2: "#d9c2a4",
-  3: "#e6d24a",
-  4: "#2f9a40",
-  5: "#7ad45a",
-  6: "#3dbe4a",
+  3: "#b9cb74",
+  4: "#438957",
+  5: "#94cc73",
+  6: "#74b962",
   7: "#ffe08a",
   8: "#6ec4b4",
   9: "#e7a86a",
@@ -143,7 +147,7 @@ export function coverLayers() {
       type: "fill",
       source: "cover",
       "source-layer": "water",
-      paint: { "fill-color": "#3cb4ff", "fill-opacity": 0.96 },
+      paint: { "fill-color": "#43c5dc", "fill-opacity": 1 },
     },
     {
       id: "waterway",
@@ -151,7 +155,7 @@ export function coverLayers() {
       source: "cover",
       "source-layer": "waterway",
       paint: {
-        "line-color": "#4eb4f0",
+        "line-color": "#49bfd4",
         "line-width": width([8, 0.6, 12, 1.4, 15, 3.2]),
       },
     },
@@ -223,10 +227,10 @@ export function coverLayers() {
 }
 
 const GROUPS = [
-  { id: "arterial", minzoom: 6, filter: ["<=", ["get", "c"], 2], color: "#ffd23a", w: [6, 3.4, 10, 7, 14, 16, 16, 24] },
-  { id: "mid", minzoom: 10, filter: ["all", [">=", ["get", "c"], 3], ["<=", ["get", "c"], 4]], color: "#ffe98a", w: [10, 2.4, 13, 6, 16, 12] },
-  { id: "local", minzoom: 12, filter: ["all", [">=", ["get", "c"], 5], ["<=", ["get", "c"], 7]], color: "#fff3c4", w: [12, 1.8, 14, 4.6, 16, 9] },
-  { id: "service", minzoom: 14, filter: ["all", [">=", ["get", "c"], 8], ["<=", ["get", "c"], 9]], color: "#fff6dc", w: [14, 1.4, 16, 4.2] },
+  { id: "arterial", minzoom: 6, filter: ["<=", ["get", "c"], 2], color: "#63717c", w: [6, 0.8, 10, 2.5, 14, 7, 16, 13] },
+  { id: "mid", minzoom: 10, filter: ["all", [">=", ["get", "c"], 3], ["<=", ["get", "c"], 4]], color: "#7c8990", w: [10, 1.4, 13, 3.5, 16, 8] },
+  { id: "local", minzoom: 12, filter: ["all", [">=", ["get", "c"], 5], ["<=", ["get", "c"], 7]], color: "#dce0d0", w: [12, 1.1, 14, 2.5, 16, 5.5] },
+  { id: "service", minzoom: 14, filter: ["all", [">=", ["get", "c"], 8], ["<=", ["get", "c"], 9]], color: "#e8dfc5", w: [14, 0.8, 16, 2.8] },
   { id: "path", minzoom: 15, filter: ["==", ["get", "c"], 10], color: "#e7d8bc", w: [15, 0.8, 17, 2.2], dash: [1.2, 1.1] },
 ] as const;
 
@@ -242,7 +246,7 @@ export function roadLayers() {
       minzoom: g.minzoom,
       filter,
       layout: { "line-cap": "round", "line-join": "round", "line-sort-key": ["coalesce", ["get", "ly"], 0] },
-      paint: { "line-color": "#241c14", "line-width": width(g.w.map((n, i) => (i % 2 ? n + 4.2 : n))) },
+      paint: { "line-color": "#f9edc9", "line-width": width(g.w.map((n, i) => (i % 2 ? n + 1.6 : n))) },
     });
     layers.push({
       id: `road-${g.id}`,
@@ -317,24 +321,68 @@ export function buildingLayer() {
       "fill-extrusion-color": [
         "match",
         ["get", "t"],
-        1, "#ff8eb4",
-        2, "#e4d8c4",
-        5, "#d2c4ff",
-        8, "#ff9a3c",
-        ["match", ["%", ["to-number", ["coalesce", ["get", "h"], 9]], 4], 0, "#ffb15e", 1, "#fff0c2", 2, "#ff9aa8", "#f0c49a"],
+        1, "#edab93",
+        2, "#e9dfc6",
+        5, "#b7bfdc",
+        8, "#efb850",
+        ["match", ["%", ["to-number", ["coalesce", ["get", "h"], 9]], 4], 0, "#f2bd81", 1, "#fff0c2", 2, "#e9b2ad", "#bbd1c3"],
       ],
-      "fill-extrusion-height": [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        13,
-        ["min", 72, ["+", 10, ["*", ["coalesce", ["get", "h"], 8], 1.25]]],
-        14.2,
-        ["min", 96, ["+", 16, ["*", ["coalesce", ["get", "h"], 8], 2.15]]],
-      ],
-      "fill-extrusion-opacity": 0.98,
+      // Keep building heights in meters: zoom changes the camera, not the city.
+      "fill-extrusion-height": ["max", 3, ["to-number", ["get", "h"], 8]],
+      "fill-extrusion-base": 0,
+      "fill-extrusion-vertical-gradient": true,
+      "fill-extrusion-opacity": 1,
     },
   };
+}
+
+export function buildingRoofLayer() {
+  const height = ["max", 3, ["to-number", ["get", "h"], 8]];
+  return {
+    id: "building-roofs",
+    type: "fill-extrusion",
+    source: "buildings",
+    "source-layer": "buildings",
+    minzoom: 14,
+    paint: {
+      "fill-extrusion-color": ["match", ["get", "t"], 2, "#c4ccd0", 5, "#ddd6bc", "#cb8060"],
+      "fill-extrusion-base": height,
+      "fill-extrusion-height": ["+", height, 0.7],
+      "fill-extrusion-opacity": 1,
+      "fill-extrusion-vertical-gradient": false,
+    },
+  };
+}
+
+export function destinationLayers() {
+  return [
+    {
+      id: "destination-points",
+      type: "circle",
+      source: "destinations",
+      paint: {
+        "circle-color": ["match", ["get", "kind"], "volcano", "#f28b50", "lake", "#43c5dc", "coast", "#f7d85b", "#fff6e4"],
+        "circle-radius": width([7, 3.5, 12, 6]),
+        "circle-stroke-color": INK,
+        "circle-stroke-width": 1.5,
+      },
+    },
+    {
+      id: "destination-labels",
+      type: "symbol",
+      source: "destinations",
+      minzoom: 9,
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Lilita One"],
+        "text-size": width([9, 13, 13, 17]),
+        "text-anchor": "bottom",
+        "text-offset": [0, -0.6],
+        "text-optional": true,
+      },
+      paint: { "text-color": CREAM, "text-halo-color": INK, "text-halo-width": 1.5 },
+    },
+  ];
 }
 
 export function labelLayers() {
@@ -351,6 +399,7 @@ export function labelLayers() {
         "icon-allow-overlap": false,
         "icon-padding": 1,
         "icon-pitch-alignment": "viewport",
+        "icon-anchor": "bottom",
       },
     },
     {
@@ -360,10 +409,11 @@ export function labelLayers() {
       minzoom: 14.5,
       layout: {
         "icon-image": ["match", ["get", "k"], 2, "palm", 1, "pine", "tree"],
-        "icon-size": ["interpolate", ["linear"], ["zoom"], 14.5, 0.95, 16.8, 1.45],
+        "icon-size": ["interpolate", ["linear"], ["zoom"], 14.5, 0.6, 16.8, 1.05],
         "icon-allow-overlap": true,
         "icon-ignore-placement": true,
         "icon-pitch-alignment": "viewport",
+        "icon-anchor": "bottom",
       },
     },
     {
@@ -375,7 +425,7 @@ export function labelLayers() {
         "icon-image": ["get", "k"],
         "icon-size": 0.72,
         "icon-allow-overlap": false,
-        "text-field": ["step", ["zoom"], "", 15, ["get", "n"]],
+        "text-field": ["step", ["zoom"], "", 16.2, ["get", "n"]],
         "text-font": ["Nunito Bold"],
         "text-size": 11,
         "text-offset": [0, 1.15],
@@ -388,8 +438,9 @@ export function labelLayers() {
       id: "places",
       type: "symbol",
       source: "places",
+      minzoom: 8.5,
       layout: {
-        "text-field": ["get", "n"],
+        "text-field": ["step", ["zoom"], ["case", ["<=", ["get", "k"], 1], ["get", "n"], ""], 13.5, ["get", "n"]],
         "text-font": ["Lilita One"],
         "text-size": [
           "interpolate",

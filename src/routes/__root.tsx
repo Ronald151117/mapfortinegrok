@@ -3,7 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "El Salvador";
+const APP_NAME = "Cuzcatlán · El Salvador";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -11,8 +11,8 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
-      { name: "description", content: "Mapa de El Salvador." },
-      { name: "theme-color", content: "#2F8FE0" },
+      { name: "description", content: "Explora El Salvador en 3D: volcanes, lagos, ciudades y costa con geografía real y una estética animada." },
+      { name: "theme-color", content: "#228DBD" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
